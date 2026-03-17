@@ -1,0 +1,134 @@
+/* Custom Styles */
+:root {
+    --glass-bg: rgba(15, 23, 42, 0.4);
+    --glass-border: rgba(51, 65, 85, 0.5);
+    --accent-blue: #3b82f6;
+    --accent-purple: #a855f7;
+}
+
+body {
+    font-family: 'Inter', sans-serif;
+}
+
+.font-outfit {
+    font-family: 'Outfit', sans-serif;
+}
+
+.glass {
+    background: var(--glass-bg);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+}
+
+/* Animations */
+@keyframes fadeInDown {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.animate-fade-in-down {
+    animation: fadeInDown 0.8s ease-out forwards;
+}
+
+/* Tab Switching */
+.tab-btn {
+    color: #64748b;
+}
+
+.tab-btn.active {
+    background: rgba(30, 41, 59, 0.5);
+    color: #f1f5f9;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+}
+
+/* QR Type Badges */
+.type-badge {
+    background: rgba(30, 41, 59, 0.5);
+    color: #94a3b8;
+    padding: 10px 24px;
+    border-radius: 14px;
+    font-size: 14px;
+    font-weight: 500;
+    border: 1px solid rgba(51, 65, 85, 0.3);
+    transition: all 0.3s;
+}
+
+.type-badge:hover {
+    background: rgba(30, 41, 59, 0.8);
+    border-color: rgba(34, 211, 238, 0.3);
+}
+
+.type-badge.active {
+    background: rgba(37, 99, 235, 0.15);
+    color: #60a5fa;
+    border-color: #3b82f6;
+    box-shadow: 0 0 15px rgba(59, 130, 246, 0.3);
+}
+
+/* PDF DPI Buttons */
+.dpi-btn.active {
+    background: rgba(168, 85, 247, 0.15);
+    color: #c084fc;
+    border-color: #a855f7;
+    box-shadow: 0 0 15px rgba(168, 85, 247, 0.3);
+}
+
+/* Progress Animations */
+#pdf-progress-bar {
+    transition: width 0.3s ease-out;
+}
+
+/* Preview Image Card */
+.preview-card {
+    background: rgba(15, 23, 42, 0.6);
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid rgba(51, 65, 85, 0.4);
+    position: relative;
+    transition: all 0.3s;
+}
+
+.preview-card:hover {
+    transform: translateY(-5px);
+    border-color: rgba(168, 85, 247, 0.4);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+    width: 10px;
+}
+
+::-webkit-scrollbar-track {
+    background: #020617;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #1e293b;
+    border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #334155;
+}
+
+/* Toast Visibility */
+.toast-show {
+    opacity: 1 !important;
+    transform: translate(-50%, -20px) !important;
+}
+
+/* Toggle Switch */
+.toggle-active {
+    background-color: #a855f7 !important;
+}
+
+.toggle-active div {
+    transform: translateX(1.5rem) !important;
+}

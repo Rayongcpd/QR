@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unified QR & PDF Hub</title>
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Scripts -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="bg-slate-950 text-slate-200 min-h-screen overflow-x-hidden">
+    <!-- Background Elements -->
+    <div class="fixed top-0 left-0 w-full h-full -z-10 overflow-hidden pointer-events-none">
+        <div class="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-blue-600/20 blur-[120px] animate-pulse"></div>
+        <div class="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-purple-600/20 blur-[120px] animate-pulse" style="animation-delay: 2s;"></div>
+        <div class="absolute top-[30%] right-[10%] w-[30%] h-[30%] rounded-full bg-cyan-600/10 blur-[100px] animate-pulse" style="animation-delay: 4s;"></div>
+    </div>
+
+    <!-- Main Container -->
+    <div class="container mx-auto px-4 py-8 max-w-6xl">
+        <!-- Header -->
+        <header class="text-center mb-12 animate-fade-in-down">
+            <h1 class="text-5xl md:text-6xl font-extrabold mb-4 font-outfit tracking-tight">
+                <span class="bg-gradient-to-r from-blue-400 via-cyan-400 to-purple-400 bg-clip-text text-transparent">Unified Hub</span>
+            </h1>
+            <p class="text-slate-400 text-lg max-w-2xl mx-auto font-light">
+                ระบบจัดการ QR Code และแปลงไฟล์ PDF ครบวงจร โดย <span class="text-cyan-400 font-medium">ครูพุทธา</span>
+            </p>
+        </header>
+
+        <!-- Navigation Tabs -->
+        <nav class="flex justify-center mb-10">
+            <div class="inline-flex p-1 bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-2xl shadow-2xl">
+                <button onclick="switchTab('qr')" id="tab-qr" class="px-8 py-3 rounded-xl text-md font-semibold transition-all duration-300 tab-btn active">
+                    QR Generator
+                </button>
+                <button onclick="switchTab('pdf')" id="tab-pdf" class="px-8 py-3 rounded-xl text-md font-semibold transition-all duration-300 tab-btn">
+                    PDF Converter
+                </button>
+            </div>
+        </nav>
+
+        <!-- Content Area -->
+        <main class="relative">
+            <!-- QR Generator Section -->
+            <section id="section-qr" class="tab-content active">
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                    <!-- Left: Input Controls -->
+                    <div class="lg:col-span-12 xl:col-span-8 flex flex-col gap-6">
+                        <div class="glass p-8 rounded-3xl border border-slate-800 shadow-2xl">
+                            <h2 class="text-2xl font-bold mb-6 flex items-center gap-2">
+                                <span class="p-2 bg-blue-500/20 rounded-lg text-blue-400">⚡</span>
+                                สร้าง QR Code
+                            </h2>
+                            
+                            <!-- Type Selection -->
+                            <div class="flex flex-wrap gap-3 mb-8">
+                                <button onclick="setQRType('url')" class="type-badge active" data-type="url">URL</button>
+                                <button onclick="setQRType('text')" class="type-badge" data-type="text">Text</button>
+                                <button onclick="setQRType('file')" class="type-badge" data-type="file">Upload File</button>
+                                <button onclick="setQRType('wifi')" class="type-badge" data-type="wifi">WiFi</button>
+                            </div>
+
+                            <!-- Dynamic Inputs -->
+                            <div id="qr-input-container" class="space-y-6">
+                                <!-- Default: URL -->
+                                <div id="input-url" class="qr-input-field">
+                                    <label class="block text-sm font-medium text-slate-400 mb-2">ลิงก์เว็บไซต์ (URL)</label>
+                                    <input type="url" id="val-url" placeholder="https://example.com" class="w-full bg-slate-950/50 border border-slate-800 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all">
+                                </div>
+                                <div id="input-text" class="qr-input-field hidden">
+                                    <label class="block text-sm font-medium text-slate-400 mb-2">ข้อความ</label>
+                                    <textarea id="val-text" rows="3" placeholder="กรอกข้อความที่ต้องการ..." class="w-full bg-slate-950/50 border border-slate-800 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all"></textarea>
+                                </div>
+                                <div id="input-file" class="qr-input-field hidden">
+                                    <label class="block text-sm font-medium text-slate-400 mb-2">อัพโหลดไฟล์ (ส่งขึ้น Google Drive)</label>
+                                    <div class="border-2 border-dashed border-slate-800 rounded-2xl p-8 text-center hover:border-blue-500/50 transition-all group cursor-pointer relative">
+                                        <input type="file" id="val-file" class="absolute inset-0 opacity-0 cursor-pointer text-[0]">
+                                        <div class="text-4xl mb-3 group-hover:scale-110 transition-transform">☁️</div>
+                                        <p class="text-slate-400" id="file-label">คลิกหรือลากไฟล์มาวางที่นี่</p>
+                                    </div>
+                                </div>
+                                <div id="input-wifi" class="qr-input-field hidden">
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label class="block text-sm font-medium text-slate-400 mb-2">ชื่อ WiFi (SSID)</label>
+                                            <input type="text" id="val-wifi-ssid" class="w-full bg-slate-950/50 border border-slate-800 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500/50">
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-medium text-slate-400 mb-2">รหัสผ่าน</label>
+                                            <input type="password" id="val-wifi-pass" class="w-full bg-slate-950/50 border border-slate-800 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500/50">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Appearance Options -->
+                            <div class="mt-10 pt-8 border-t border-slate-800/50">
+                                <h3 class="text-sm font-bold text-slate-500 uppercase tracking-wider mb-6">ตั้งค่าสี</h3>
+                                <div class="grid grid-cols-2 gap-6">
+                                    <div>
+                                        <label class="block text-sm text-slate-400 mb-3">สี QR Code</label>
+                                        <div class="flex items-center gap-3">
+                                            <input type="color" id="qr-color" value="#ffffff" class="w-12 h-12 rounded-lg cursor-pointer bg-transparent border-none">
+                                            <span class="text-sm font-mono" id="qr-color-val">#ffffff</span>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm text-slate-400 mb-3">สีพื้นหลัง</label>
+                                        <div class="flex items-center gap-3">
+                                            <input type="color" id="bg-color" value="#000000" class="w-12 h-12 rounded-lg cursor-pointer bg-transparent border-none">
+                                            <span class="text-sm font-mono" id="bg-color-val">#000000</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <button onclick="generateQR()" id="btn-generate" class="w-full mt-10 bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 text-white font-bold py-4 rounded-2xl shadow-xl shadow-blue-900/20 transform active:scale-[0.98] transition-all flex items-center justify-center gap-3">
+                                <span>สร้าง QR Code</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Right: Preview -->
+                    <div class="lg:col-span-12 xl:col-span-4">
+                        <div class="glass p-8 rounded-3xl border border-slate-800 shadow-2xl sticky top-8">
+                            <h2 class="text-2xl font-bold mb-6 text-center">Preview</h2>
+                            <div id="qr-preview-container" class="bg-black/50 aspect-square rounded-2xl flex items-center justify-center p-6 border border-slate-800/50 mb-6">
+                                <div id="qr-canvas-wrapper">
+                                    <div class="text-slate-600 text-6xl opacity-20">📱</div>
+                                </div>
+                            </div>
+                            <div id="qr-actions" class="hidden space-y-3">
+                                <button onclick="downloadQR()" class="w-full py-3 px-6 bg-slate-800 hover:bg-slate-700 rounded-xl font-semibold transition-all flex items-center justify-center gap-2">
+                                    <span>Download PNG</span>
+                                </button>
+                                <button onclick="copyQRLink()" class="w-full py-3 px-6 bg-slate-900/50 border border-slate-800 rounded-xl font-semibold text-cyan-400 hover:bg-slate-800 transition-all">
+                                    Copy URL
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- PDF Converter Section -->
+            <section id="section-pdf" class="tab-content hidden">
+                <div class="glass p-8 rounded-3xl border border-slate-800 shadow-2xl">
+                    <h2 class="text-2xl font-bold mb-6 flex items-center gap-2">
+                        <span class="p-2 bg-purple-500/20 rounded-lg text-purple-400">📄</span>
+                        แปลงไฟล์ PDF เป็นภาพ
+                    </h2>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10">
+                        <!-- Upload Box -->
+                        <div class="border-2 border-dashed border-slate-800 rounded-3xl p-12 text-center hover:border-purple-500/50 transition-all group cursor-pointer relative h-full flex flex-col items-center justify-center">
+                            <input type="file" id="pdf-upload" accept=".pdf" class="absolute inset-0 opacity-0 cursor-pointer text-[0]">
+                            <div class="text-5xl mb-4 group-hover:scale-110 transition-transform">📂</div>
+                            <p class="text-lg font-medium text-slate-300" id="pdf-label">ลากไฟล์ PDF มาวางที่นี่</p>
+                            <p class="text-sm text-slate-500 mt-2">รองรับไฟล์เอกสาร PDF ไม่เกิน 20MB</p>
+                        </div>
+
+                        <!-- Settings -->
+                        <div class="bg-slate-950/30 rounded-3xl p-8 border border-slate-800/50">
+                            <h3 class="text-sm font-bold text-slate-500 uppercase tracking-wider mb-6">คุณภาพของการแปลง</h3>
+                            <div class="space-y-6">
+                                <div>
+                                    <label class="block text-sm text-slate-400 mb-3">ความละเอียด (DPI)</label>
+                                    <div class="flex gap-2">
+                                        <button onclick="setPDFDPI(150)" class="dpi-btn px-4 py-2 rounded-lg bg-slate-900 border border-slate-800 text-sm active" data-dpi="150">150 (Fast)</button>
+                                        <button onclick="setPDFDPI(300)" class="dpi-btn px-4 py-2 rounded-lg bg-slate-900 border border-slate-800 text-sm" data-dpi="300">300 (HD)</button>
+                                        <button onclick="setPDFDPI(600)" class="dpi-btn px-4 py-2 rounded-lg bg-slate-900 border border-slate-800 text-sm" data-dpi="600">600 (Ultra)</button>
+                                    </div>
+                                </div>
+                                <div class="flex items-center justify-between">
+                                    <label class="text-sm text-slate-400">บันทึกเข้า Google Drive อัตโนมัติ</label>
+                                    <div class="relative inline-block w-12 h-6 rounded-full bg-slate-800 transition-colors duration-300 cursor-pointer" id="pdf-auto-save-wrapper">
+                                        <input type="checkbox" id="pdf-auto-save" class="hidden" checked>
+                                        <div class="absolute left-1 top-1 w-4 h-4 rounded-full bg-white transition-transform duration-300 transform translate-x-6" id="pdf-toggle-dot"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="pdf-status" class="hidden mb-8">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-sm text-slate-400" id="pdf-progress-text">กำลังการประมวลผล...</span>
+                            <span class="text-sm font-mono text-purple-400" id="pdf-progress-val">0%</span>
+                        </div>
+                        <div class="h-2 w-full bg-slate-900 rounded-full overflow-hidden">
+                            <div id="pdf-progress-bar" class="h-full bg-gradient-to-r from-purple-600 to-fuchsia-500 transition-all duration-300" style="width: 0%;"></div>
+                        </div>
+                    </div>
+
+                    <div id="pdf-preview-area" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 hidden">
+                        <!-- Preview images will be dumped here -->
+                    </div>
+
+                    <div id="pdf-result-actions" class="hidden mt-10 pt-8 border-t border-slate-800/50 flex flex-wrap gap-4">
+                        <button onclick="downloadAllImages()" class="bg-purple-600 hover:bg-purple-500 text-white px-8 py-3 rounded-xl font-bold flex items-center gap-2">
+                            <span>📦 ดาวน์โหลด ZIP</span>
+                        </button>
+                        <button onclick="savePDFToDrive()" class="bg-slate-900 hover:bg-slate-800 border border-slate-700 text-fuchsia-400 px-8 py-3 rounded-xl font-bold flex items-center gap-2">
+                            <span>☁️ บันทึกลง Drive</span>
+                        </button>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Footer -->
+        <footer class="mt-20 border-t border-slate-900 py-8 text-center">
+            <p class="text-slate-600 text-sm">&copy; 2026 Unified QR & PDF Hub. Built with ❤️ for Educators.</p>
+        </footer>
+    </div>
+
+    <!-- Toast Component -->
+    <div id="toast" class="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-50 transition-all duration-500 opacity-0 translate-y-10 group">
+        <div class="bg-slate-900 border border-slate-800 text-white px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3">
+            <span id="toast-icon">✨</span>
+            <span id="toast-msg">Success!</span>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
