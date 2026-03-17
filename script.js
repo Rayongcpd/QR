@@ -277,19 +277,21 @@ async function downloadAllImages() {
 async function callBackend(action, data) {
     try {
         // GAS doPost handles text/plain well and avoids CORS preflight issues
+        // Use 'cors' mode to allow reading the response from GAS
         const response = await fetch(GAS_URL, {
             method: 'POST',
-            mode: 'no-cors', 
+            mode: 'cors', 
             headers: {
                 'Content-Type': 'text/plain'
             },
             body: JSON.stringify({ action, data })
         });
         
-        // Since 'no-cors' mode is used, we can't inspect the response object details
-        // We log success for debugging
-        console.log(`Backend action '${action}' triggered successfully.`);
-        return { success: true }; 
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        
+        const result = await response.json();
+        console.log(`Backend action '${action}' completed:`, result);
+        return result; 
     } catch (err) {
         console.error('Backend Communication Error:', err);
         showToast('การสื่อสารกับ Backend ขัดข้อง', '⚠️');
