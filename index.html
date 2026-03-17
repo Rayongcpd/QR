@@ -539,17 +539,13 @@
                     <!-- Left: Controls -->
                     <div class="glass glass-mobile-padding" style="border-radius:24px;padding:32px;">
 
-                        <!-- Step 1: Type -->
                         <div style="margin-bottom:28px;">
                             <p class="field-label">ขั้นที่ 1 — เลือกประเภท QR</p>
                             <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;">
                                 <button onclick="setQRType('url')" class="type-badge active" data-type="url">🔗 URL
                                     Link</button>
-                                <button onclick="setQRType('text')" class="type-badge" data-type="text">💬 Plain
-                                    Text</button>
                                 <button onclick="setQRType('file')" class="type-badge" data-type="file">☁️ File
                                     Upload</button>
-                                <button onclick="setQRType('wifi')" class="type-badge" data-type="wifi">📶 WiFi</button>
                             </div>
                         </div>
 
@@ -560,11 +556,6 @@
 
                                 <div id="input-url" class="qr-input-field">
                                     <input type="url" id="val-url" class="field" placeholder="https://example.com">
-                                </div>
-
-                                <div id="input-text" class="qr-input-field hidden">
-                                    <textarea id="val-text" rows="4" class="field"
-                                        placeholder="กรอกข้อความที่ต้องการใส่ใน QR Code..."></textarea>
                                 </div>
 
                                 <div id="input-file" class="qr-input-field hidden">
@@ -580,21 +571,6 @@
                                             Google Drive อัตโนมัติ</p>
                                     </div>
                                 </div>
-
-                                <div id="input-wifi" class="qr-input-field hidden">
-                                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-                                        <div>
-                                            <p class="field-label">ชื่อ WiFi (SSID)</p>
-                                            <input type="text" id="val-wifi-ssid" class="field" placeholder="MyWiFi">
-                                        </div>
-                                        <div>
-                                            <p class="field-label">รหัสผ่าน</p>
-                                            <input type="password" id="val-wifi-pass" class="field"
-                                                placeholder="••••••••">
-                                        </div>
-                                    </div>
-                                </div>
-
                             </div>
                         </div>
 
