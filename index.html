@@ -426,7 +426,7 @@
                 <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
                     <div>
                         <h1
-                            style="font-family:'Outfit',sans-serif;font-size:28px;font-weight:800;background:linear-gradient(90deg,#60a5fa,#22d3ee,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;line-height:1.2;">
+                            style="font-family:'Outfit',sans-serif;font-size:28px;font-weight:800;background:linear-gradient(90deg,#60a5fa,#22d3ee,#a78bfa);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;line-height:1.2;">
                             Unified Hub
                         </h1>
                         <p style="font-size:13px;color:#64748b;margin-top:4px;">ระบบ QR Code & PDF Converter · CPD
@@ -673,62 +673,82 @@
         </div>
     </div>
 
-    <script>
-        // Override switchTab and toggleAutoSave for new sidebar nav
-        const _origSwitch = window.switchTab;
-        function switchTab(tab) {
-            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-            document.getElementById('tab-' + tab).classList.add('active');
-
-            document.querySelectorAll('.tab-content').forEach(s => s.classList.remove('active'));
-            document.getElementById('section-' + tab).classList.add('active');
-
-            if (window.currentTab !== undefined) window.currentTab = tab;
-        }
-
-        function toggleAutoSave(el) {
-            el.classList.toggle('on');
-            document.getElementById('pdf-auto-save').checked = el.classList.contains('on');
-        }
-
-        // Show qr-actions using flex after generation
-        const _origShowActions = window.showQRActions;
-        document.addEventListener('DOMContentLoaded', () => {
-            const origGenerateQR = window.generateQR;
-            if (origGenerateQR) {
-                // patch: after generateQR runs, set qr-actions display to flex
-                const actions = document.getElementById('qr-actions');
-                const observer = new MutationObserver(() => {
-                    if (!actions.classList.contains('hidden') || actions.style.display !== 'none') {
-                        actions.style.display = 'flex';
-                    }
-                });
-            }
-        });
-    </script>
     <script src="script.js"></script>
     <script>
-        // Patch: show qr-actions correctly after generation
-        const origGenerateQR = generateQR;
-        async function generateQR() {
-            await origGenerateQR();
-            const actions = document.getElementById('qr-actions');
-            if (actions) actions.style.display = 'flex';
-        }
+        // ==================== UI OVERRIDES & PATCHES ====================
+        // These overrides ensure script.js logic works with the new Sidebar UI
 
-        // Patch: show pdf-result-actions with flex
-        const origHandlePDFUpload = handlePDFUpload;
-        async function handlePDFUpload(e) {
-            document.getElementById('pdf-status').style.display = 'block';
-            document.getElementById('pdf-preview-area').style.display = 'none';
-            document.getElementById('pdf-result-actions').style.display = 'none';
-            await origHandlePDFUpload(e);
-            document.getElementById('pdf-preview-area').style.display = 'grid';
-            document.getElementById('pdf-result-actions').style.display = 'flex';
-        }
+        // 1. Override switchTab for Sidebar
+        window.switchTab = function(tab) {
+            if (typeof currentTab !== 'undefined') currentTab = tab; 
+            
+            // Sidebar Icons
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            const activeTab = document.getElementById('tab-' + tab);
+            if (activeTab) activeTab.classList.add('active');
 
-        // Re-bind pdf-upload since we re-wrote the HTML
-        document.getElementById('pdf-upload').addEventListener('change', handlePDFUpload);
+            // Content Sections
+            document.querySelectorAll('.tab-content').forEach(s => {
+                s.classList.remove('active');
+            });
+            const activeSection = document.getElementById('section-' + tab);
+            if (activeSection) {
+                activeSection.classList.add('active');
+            }
+        };
+
+        // 2. Override toggleAutoSave UI
+        window.toggleAutoSave = function(el) {
+            el.classList.toggle('on');
+            const checkbox = document.getElementById('pdf-auto-save');
+            if (checkbox) checkbox.checked = el.classList.contains('on');
+        };
+
+        // 3. Patch generateQR to show actions
+        const origGenerateQR = window.generateQR;
+        window.generateQR = async function() {
+            if (typeof origGenerateQR === 'function') {
+                await origGenerateQR();
+                const actions = document.getElementById('qr-actions');
+                if (actions) actions.style.display = 'flex';
+            }
+        };
+
+        // 4. Patch handlePDFUpload for Gallery UI
+        const origHandlePDFUpload = window.handlePDFUpload;
+        window.handlePDFUpload = async function(e) {
+            if (typeof origHandlePDFUpload === 'function') {
+                const status = document.getElementById('pdf-status');
+                const area = document.getElementById('pdf-preview-area');
+                const acts = document.getElementById('pdf-result-actions');
+                
+                if (status) status.style.display = 'block';
+                if (area) area.style.display = 'none';
+                if (acts) acts.style.display = 'none';
+                
+                await origHandlePDFUpload(e);
+                
+                if (area) area.style.display = 'grid';
+                if (acts) acts.style.display = 'flex';
+            }
+        };
+
+        // 5. Re-bind events for the new HTML structure
+        document.addEventListener('DOMContentLoaded', () => {
+            const pdfInput = document.getElementById('pdf-upload');
+            if (pdfInput) {
+                pdfInput.removeEventListener('change', window.handlePDFUpload); // Clear old
+                pdfInput.addEventListener('change', window.handlePDFUpload);     // Bind new
+            }
+            
+            // Sync initial state
+            const initialAutoSave = document.getElementById('pdf-auto-save');
+            const toggleWrapper = document.getElementById('pdf-auto-save-wrapper');
+            if (initialAutoSave && toggleWrapper) {
+                if (initialAutoSave.checked) toggleWrapper.classList.add('on');
+                else toggleWrapper.classList.remove('on');
+            }
+        });
     </script>
 </body>
 
