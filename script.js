@@ -276,20 +276,23 @@ async function downloadAllImages() {
 
 async function callBackend(action, data) {
     try {
+        // GAS doPost handles text/plain well and avoids CORS preflight issues
         const response = await fetch(GAS_URL, {
             method: 'POST',
-            mode: 'no-cors', // Note: GAS doPost requires special handling, 'no-cors' wont read response
+            mode: 'no-cors', 
+            headers: {
+                'Content-Type': 'text/plain'
+            },
             body: JSON.stringify({ action, data })
         });
         
-        // Since GAS returns CORS issues with direct fetch sometimes, 
-        // a common pattern is to use a forms-based approach or 
-        // expect 'no-cors' to just send and hope. 
-        // For production, a proper CORS Proxy or Apps Script API execution is better.
-        
+        // Since 'no-cors' mode is used, we can't inspect the response object details
+        // We log success for debugging
+        console.log(`Backend action '${action}' triggered successfully.`);
         return { success: true }; 
     } catch (err) {
-        console.error('Backend Error:', err);
+        console.error('Backend Communication Error:', err);
+        showToast('การสื่อสารกับ Backend ขัดข้อง', '⚠️');
         return { success: false, error: err.toString() };
     }
 }
