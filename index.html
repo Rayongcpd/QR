@@ -376,6 +376,86 @@
         .qr-input-field.hidden {
             display: none;
         }
+
+        /* ── Mobile Optimization (Max-width: 768px) ── */
+        @media (max-width: 768px) {
+            .sidebar {
+                display: none !important;
+            }
+
+            .main-content {
+                padding: 16px 12px 80px 12px !important; /* Extra bottom padding for mobile nav */
+            }
+
+            .layout-wrapper {
+                flex-direction: column;
+            }
+
+            .grid-cols-mobile-stack {
+                grid-template-columns: 1fr !important;
+            }
+
+            .qr-preview-pane {
+                position: static !important;
+                margin-top: 16px;
+            }
+
+            .glass-mobile-padding {
+                padding: 20px !important;
+            }
+
+            header h1 {
+                font-size: 22px !important;
+            }
+
+            .dropzone {
+                min-height: 160px !important;
+                padding: 20px 12px !important;
+            }
+
+            .pdf-settings-grid {
+                grid-template-columns: 1fr !important;
+            }
+
+            /* Bottom Nav */
+            .bottom-nav {
+                display: flex !important;
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                height: 64px;
+                background: rgba(15, 23, 42, 0.85);
+                backdrop-filter: blur(16px);
+                border-top: 1px solid var(--glass-border);
+                z-index: 1000;
+                justify-content: space-around;
+                align-items: center;
+                padding: 0 16px;
+            }
+
+            .bottom-nav-item {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 4px;
+                font-size: 10px;
+                font-weight: 700;
+                color: #64748b;
+                text-transform: uppercase;
+                letter-spacing: 0.05em;
+                cursor: pointer;
+                transition: all 0.2s;
+            }
+
+            .bottom-nav-item.active {
+                color: #38bdf8;
+            }
+
+            .bottom-nav-item .icon {
+                font-size: 20px;
+            }
+        }
     </style>
 </head>
 
@@ -390,7 +470,7 @@
         style="width:350px;height:350px;top:40%;left:35%;background:rgba(6,182,212,0.06);animation-delay:6s;"></div>
 
     <!-- Layout Wrapper -->
-    <div style="display:flex; min-height:100vh; position:relative; z-index:1;">
+    <div class="layout-wrapper" style="display:flex; min-height:100vh; position:relative; z-index:1;">
 
         <!-- ── Sidebar ── -->
         <aside class="glass sidebar flex flex-col items-center py-6 gap-2 border-r"
@@ -418,8 +498,20 @@
                 CPD<br>RAYONG</div>
         </aside>
 
+        <!-- ── Bottom Nav (Mobile Only) ── -->
+        <nav class="bottom-nav" style="display:none;">
+            <div class="bottom-nav-item active" onclick="switchTab('qr')" id="tab-qr-mobile">
+                <span class="icon">📷</span>
+                QR
+            </div>
+            <div class="bottom-nav-item" onclick="switchTab('pdf')" id="tab-pdf-mobile">
+                <span class="icon">📄</span>
+                PDF
+            </div>
+        </nav>
+
         <!-- ── Main Area ── -->
-        <div style="flex:1; overflow-y:auto; padding: 32px 24px;">
+        <div class="main-content" style="flex:1; overflow-y:auto; padding: 32px 24px;">
 
             <!-- Header -->
             <header class="fade-up" style="margin-bottom:32px;">
@@ -442,10 +534,10 @@
 
             <!-- ── QR Section ── -->
             <section id="section-qr" class="tab-content active fade-up">
-                <div style="display:grid;grid-template-columns:1fr 340px;gap:24px;align-items:start;">
+                <div class="grid-cols-mobile-stack" style="display:grid;grid-template-columns:1fr 340px;gap:24px;align-items:start;">
 
                     <!-- Left: Controls -->
-                    <div class="glass" style="border-radius:24px;padding:32px;">
+                    <div class="glass glass-mobile-padding" style="border-radius:24px;padding:32px;">
 
                         <!-- Step 1: Type -->
                         <div style="margin-bottom:28px;">
@@ -537,8 +629,8 @@
                     </div>
 
                     <!-- Right: Preview -->
-                    <div style="position:sticky;top:24px;">
-                        <div class="glass" style="border-radius:24px;padding:24px;text-align:center;">
+                    <div class="qr-preview-pane" style="position:sticky;top:24px;">
+                        <div class="glass glass-mobile-padding" style="border-radius:24px;padding:24px;text-align:center;">
                             <p class="field-label" style="margin-bottom:16px;">Preview</p>
 
                             <!-- QR Display -->
@@ -572,7 +664,7 @@
 
             <!-- ── PDF Section ── -->
             <section id="section-pdf" class="tab-content fade-up">
-                <div class="glass" style="border-radius:24px;padding:32px;">
+                <div class="glass glass-mobile-padding" style="border-radius:24px;padding:32px;">
 
                     <h2
                         style="font-family:'Outfit',sans-serif;font-size:20px;font-weight:700;margin-bottom:24px;display:flex;align-items:center;gap:10px;">
@@ -581,7 +673,7 @@
                         แปลง PDF เป็นภาพ
                     </h2>
 
-                    <div style="display:grid;grid-template-columns:1fr 260px;gap:24px;margin-bottom:28px;">
+                    <div class="grid-cols-mobile-stack" style="display:grid;grid-template-columns:1fr 260px;gap:24px;margin-bottom:28px;">
 
                         <!-- Drop Zone -->
                         <div class="dropzone"
@@ -678,7 +770,7 @@
         // ==================== UI OVERRIDES & PATCHES ====================
         // These overrides ensure script.js logic works with the new Sidebar UI
 
-        // 1. Override switchTab for Sidebar
+        // 1. Override switchTab for Sidebar & Bottom Nav
         window.switchTab = function(tab) {
             if (typeof currentTab !== 'undefined') currentTab = tab; 
             
@@ -686,6 +778,11 @@
             document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
             const activeTab = document.getElementById('tab-' + tab);
             if (activeTab) activeTab.classList.add('active');
+
+            // Bottom Nav Icons
+            document.querySelectorAll('.bottom-nav-item').forEach(n => n.classList.remove('active'));
+            const mobileActiveTab = document.getElementById('tab-' + tab + '-mobile');
+            if (mobileActiveTab) mobileActiveTab.classList.add('active');
 
             // Content Sections
             document.querySelectorAll('.tab-content').forEach(s => {
