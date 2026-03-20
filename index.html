@@ -749,11 +749,9 @@
                         <div style="font-size:48px;margin-bottom:20px;">🔒</div>
                         <h3 style="font-size:18px;font-weight:700;margin-bottom:12px;">พื้นที่สำหรับผู้ดูแลระบบ</h3>
                         <p style="font-size:13px;color:#64748b;margin-bottom:24px;">กรุณากรอกรหัสผ่านเพื่อเข้าใช้งานระบบจัดการข้อมูล</p>
-                        
                         <div style="margin-bottom:20px;">
                             <input type="password" id="admin-password" class="field" placeholder="Admin Code" style="text-align:center;letter-spacing:0.5em;">
                         </div>
-                        
                         <button onclick="loginAdmin()" id="btn-admin-login" class="btn-primary" style="width:100%;">
                             ยืนยันรหัสผ่าน ⚡
                         </button>
@@ -761,43 +759,50 @@
 
                     <!-- Admin Dashboard View (Initially Hidden) -->
                     <div id="admin-dashboard-view" style="display:none;">
-                        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));gap:20px;">
-                            
-                            <!-- QR Data Card -->
-                            <div class="glass" style="border-radius:20px;padding:24px;border:1px solid rgba(255,255,255,0.05);">
-                                <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
-                                    <span style="font-size:24px;">📷</span>
-                                    <div>
-                                        <h4 style="font-size:15px;font-weight:700;">จัดการข้อมูล QR Code</h4>
-                                        <p style="font-size:12px;color:#64748b;">ลบประวัติการสร้าง QR Code ทั้งหมด</p>
-                                    </div>
-                                </div>
-                                <button onclick="clearData('QR')" class="btn-primary" style="background:linear-gradient(135deg,#ef4444,#dc2626);box-shadow:0 4px 16px rgba(239,68,68,0.3);">
-                                    ลบข้อมูล QR ทั้งหมด 🗑️
-                                </button>
-                            </div>
 
-                            <!-- PDF Data Card -->
-                            <div class="glass" style="border-radius:20px;padding:24px;border:1px solid rgba(255,255,255,0.05);">
-                                <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
-                                    <span style="font-size:24px;">📄</span>
-                                    <div>
-                                        <h4 style="font-size:15px;font-weight:700;">จัดการข้อมูล PDF</h4>
-                                        <p style="font-size:12px;color:#64748b;">ลบประวัติการแปลงไฟล์ PDF ทั้งหมด</p>
-                                    </div>
-                                </div>
-                                <button onclick="clearData('PDF')" class="btn-primary" style="background:linear-gradient(135deg,#ef4444,#dc2626);box-shadow:0 4px 16px rgba(239,68,68,0.3);">
-                                    ลบข้อมูล PDF ทั้งหมด 🗑️
-                                </button>
+                        <!-- Tabs -->
+                        <div style="display:flex;gap:8px;margin-bottom:24px;flex-wrap:wrap;align-items:center;justify-content:space-between;">
+                            <div style="display:flex;gap:8px;">
+                                <button onclick="adminSwitchTab('qr')" id="admin-tab-qr" class="type-badge active" data-type="qr">📷 QR Code</button>
+                                <button onclick="adminSwitchTab('pdf')" id="admin-tab-pdf" class="type-badge" data-type="pdf">📄 PDF</button>
                             </div>
-
+                            <button onclick="logoutAdmin()" style="font-size:12px;color:#64748b;text-decoration:underline;cursor:pointer;">ออกจากระบบ 🔓</button>
                         </div>
 
-                        <div style="margin-top:32px;text-align:center;">
-                            <button onclick="logoutAdmin()" style="font-size:13px;color:#64748b;text-decoration:underline;cursor:pointer;">
-                                ออกจากระบบ Admin
-                            </button>
+                        <!-- QR Records Tab -->
+                        <div id="admin-panel-qr">
+                            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:10px;">
+                                <div style="display:flex;align-items:center;gap:8px;">
+                                    <input type="checkbox" id="qr-select-all" onchange="toggleSelectAll('qr')" style="width:16px;height:16px;cursor:pointer;">
+                                    <span id="qr-selected-count" style="font-size:12px;color:#64748b;">เลือกทั้งหมด</span>
+                                </div>
+                                <div style="display:flex;gap:8px;">
+                                    <button onclick="loadAdminRecords('qr')" style="padding:8px 14px;border-radius:10px;background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.2);color:#60a5fa;font-size:12px;font-weight:600;cursor:pointer;">🔄 รีเฟรช</button>
+                                    <button onclick="deleteSelected('qr')" id="btn-delete-qr" style="padding:8px 14px;border-radius:10px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);color:#f87171;font-size:12px;font-weight:600;cursor:pointer;">🗑️ ลบที่เลือก</button>
+                                </div>
+                            </div>
+                            <div id="admin-qr-loading" style="text-align:center;padding:40px;color:#64748b;font-size:13px;">กำลังโหลด...</div>
+                            <div id="admin-qr-list" style="display:none;max-height:440px;overflow-y:auto;"></div>
+                            <div id="admin-qr-empty" style="display:none;text-align:center;padding:40px;color:#64748b;font-size:13px;">ไม่มีข้อมูล QR Code</div>
                         </div>
+
+                        <!-- PDF Records Tab (Hidden initially) -->
+                        <div id="admin-panel-pdf" style="display:none;">
+                            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:10px;">
+                                <div style="display:flex;align-items:center;gap:8px;">
+                                    <input type="checkbox" id="pdf-select-all" onchange="toggleSelectAll('pdf')" style="width:16px;height:16px;cursor:pointer;">
+                                    <span id="pdf-selected-count" style="font-size:12px;color:#64748b;">เลือกทั้งหมด</span>
+                                </div>
+                                <div style="display:flex;gap:8px;">
+                                    <button onclick="loadAdminRecords('pdf')" style="padding:8px 14px;border-radius:10px;background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.2);color:#60a5fa;font-size:12px;font-weight:600;cursor:pointer;">🔄 รีเฟรช</button>
+                                    <button onclick="deleteSelected('pdf')" id="btn-delete-pdf" style="padding:8px 14px;border-radius:10px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);color:#f87171;font-size:12px;font-weight:600;cursor:pointer;">🗑️ ลบที่เลือก</button>
+                                </div>
+                            </div>
+                            <div id="admin-pdf-loading" style="text-align:center;padding:40px;color:#64748b;font-size:13px;">กำลังโหลด...</div>
+                            <div id="admin-pdf-list" style="display:none;max-height:440px;overflow-y:auto;"></div>
+                            <div id="admin-pdf-empty" style="display:none;text-align:center;padding:40px;color:#64748b;font-size:13px;">ไม่มีข้อมูล PDF</div>
+                        </div>
+
                     </div>
                 </div>
             </section>

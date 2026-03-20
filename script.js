@@ -82,6 +82,8 @@ function updateAdminUI() {
     if (isAdminAuthenticated) {
         loginView.style.display = 'none';
         dashboardView.style.display = 'block';
+        // Auto-load QR records on first login
+        loadAdminRecords('qr');
     } else {
         loginView.style.display = 'block';
         dashboardView.style.display = 'none';
@@ -129,24 +131,167 @@ function logoutAdmin() {
     updateAdminUI();
 }
 
+
 async function clearData(type) {
     const confirmed = confirm(`คุณแน่ใจหรือไม่ว่าต้องการลบข้อมูล ${type} ทั้งหมด? การกระทำนี้ไม่สามารถย้อนกลับได้`);
     if (!confirmed) return;
-
     const adminCode = sessionStorage.getItem('adminCode');
     const action = type === 'QR' ? 'clearQRRecords' : 'clearPDFRecords';
-
     showToast('กำลังลบข้อมูล...', '🗑️');
-
     try {
         const result = await callBackend(action, { adminCode });
         if (result.success) {
             showToast(`ลบข้อมูล ${type} สำเร็จ!`, '✅');
+            loadAdminRecords(type.toLowerCase());
         } else {
             showToast(result.error || 'ลบข้อมูลไม่สำเร็จ', '❌');
         }
     } catch (err) {
         showToast('เกิดข้อผิดพลาดในการสั่งลบข้อมูล', '⚠️');
+    }
+}
+
+// ── Admin Data List ──────────────────────────────────────
+let currentAdminTab = 'qr';
+let adminQRRecords = [];
+let adminPDFRecords = [];
+
+function adminSwitchTab(tab) {
+    currentAdminTab = tab;
+    document.querySelectorAll('#admin-dashboard-view .type-badge').forEach(b => b.classList.remove('active'));
+    const btn = document.getElementById('admin-tab-' + tab);
+    if (btn) btn.classList.add('active');
+    document.getElementById('admin-panel-qr').style.display = tab === 'qr' ? 'block' : 'none';
+    document.getElementById('admin-panel-pdf').style.display = tab === 'pdf' ? 'block' : 'none';
+    loadAdminRecords(tab);
+}
+
+async function loadAdminRecords(type) {
+    const loadingEl  = document.getElementById(`admin-${type}-loading`);
+    const listEl     = document.getElementById(`admin-${type}-list`);
+    const emptyEl    = document.getElementById(`admin-${type}-empty`);
+    const selectAll  = document.getElementById(`${type}-select-all`);
+
+    loadingEl.style.display = 'block';
+    listEl.style.display    = 'none';
+    emptyEl.style.display   = 'none';
+    if (selectAll) selectAll.checked = false;
+
+    const action = type === 'qr' ? 'readQRRecords' : null;
+    let records = [];
+
+    try {
+        if (type === 'qr') {
+            const result = await callBackend('readQRRecords', {});
+            records = result.success ? result.data : [];
+            adminQRRecords = records;
+        } else {
+            // PDF: use GET endpoint to get records with row indices
+            const res = await fetch(`${GAS_URL}?action=getPDFHistory`);
+            const json = await res.json();
+            if (json.success && Array.isArray(json.data)) {
+                // data may be an array of objects (now includes _rowIndex from updated backend)
+                // or an array of raw arrays (old backend) — handle both
+                records = json.data.map((row, i) => {
+                    if (typeof row === 'object' && !Array.isArray(row)) return row;
+                    return {
+                        _rowIndex: i + 2,
+                        'Timestamp': row[0], 'Filename': row[1],
+                        'Total Pages': row[2], 'DPI': row[3],
+                        'Drive Folder URL': row[4], 'User Email': row[5]
+                    };
+                });
+            }
+            adminPDFRecords = records;
+        }
+    } catch (e) {
+        records = [];
+    }
+
+    loadingEl.style.display = 'none';
+
+    if (!records || records.length === 0) {
+        emptyEl.style.display = 'block';
+        updateSelectedCount(type, 0, 0);
+        return;
+    }
+
+    listEl.innerHTML = '';
+    listEl.style.display = 'block';
+    renderRecords(type, records, listEl);
+    updateSelectedCount(type, 0, records.length);
+}
+
+function renderRecords(type, records, container) {
+    records.forEach((rec, idx) => {
+        const rowId  = type === 'qr' ? (rec.qr_id || rec['qr_id'] || idx) : (rec._rowIndex || idx + 2);
+        const label  = type === 'qr'
+            ? `<strong style="color:#e2e8f0">${rec.type || 'URL'}</strong> · <span style="color:#94a3b8;font-size:11px;word-break:break-all;">${String(rec.data || '').slice(0, 60)}</span>`
+            : `<strong style="color:#e2e8f0">${rec['Filename'] || rec[1] || 'ไฟล์'}</strong> · <span style="color:#94a3b8;font-size:11px;">${rec['Total Pages'] || rec[2] || '?'} หน้า · DPI ${rec['DPI'] || rec[3] || ''}</span>`;
+        const dateVal = type === 'qr' ? rec.created_at : (rec['Timestamp'] || rec[0] || '');
+        const dateStr = dateVal ? new Date(dateVal).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid rgba(255,255,255,0.04);transition:background 0.15s;cursor:pointer;border-radius:10px;';
+        row.onmouseenter = () => row.style.background = 'rgba(255,255,255,0.03)';
+        row.onmouseleave = () => row.style.background = '';
+        row.innerHTML = `
+            <input type="checkbox" class="${type}-record-cb" data-id="${rowId}" style="width:16px;height:16px;cursor:pointer;flex-shrink:0;" onchange="updateSelectedCount('${type}')">
+            <div style="flex:1;min-width:0;">
+                <div style="font-size:13px;line-height:1.4;">${label}</div>
+                <div style="font-size:11px;color:#475569;margin-top:2px;">${dateStr}</div>
+            </div>
+        `;
+        row.onclick = (e) => {
+            if (e.target.tagName === 'INPUT') return;
+            const cb = row.querySelector('input[type=checkbox]');
+            cb.checked = !cb.checked;
+            updateSelectedCount(type);
+        };
+        container.appendChild(row);
+    });
+}
+
+function toggleSelectAll(type) {
+    const masterCb = document.getElementById(`${type}-select-all`);
+    document.querySelectorAll(`.${type}-record-cb`).forEach(cb => cb.checked = masterCb.checked);
+    updateSelectedCount(type);
+}
+
+function updateSelectedCount(type, selectedOverride, totalOverride) {
+    const checkboxes = document.querySelectorAll(`.${type}-record-cb`);
+    const total    = totalOverride !== undefined ? totalOverride : checkboxes.length;
+    const selected = selectedOverride !== undefined ? selectedOverride : [...checkboxes].filter(c => c.checked).length;
+    const el = document.getElementById(`${type}-selected-count`);
+    if (el) el.textContent = selected > 0 ? `เลือก ${selected} / ${total} รายการ` : `เลือกทั้งหมด (${total} รายการ)`;
+    const masterCb = document.getElementById(`${type}-select-all`);
+    if (masterCb && checkboxes.length > 0) masterCb.indeterminate = selected > 0 && selected < total;
+}
+
+async function deleteSelected(type) {
+    const checkboxes = [...document.querySelectorAll(`.${type}-record-cb:checked`)];
+    if (checkboxes.length === 0) {
+        showToast('กรุณาเลือกรายการที่ต้องการลบก่อน', '⚠️');
+        return;
+    }
+    const confirmed = confirm(`ต้องการลบ ${checkboxes.length} รายการที่เลือก? การกระทำนี้ไม่สามารถย้อนกลับได้`);
+    if (!confirmed) return;
+
+    const adminCode = sessionStorage.getItem('adminCode');
+    const ids = checkboxes.map(cb => cb.dataset.id);
+    const action = type === 'qr' ? 'deleteQRRecord' : 'deletePDFRecord';
+
+    showToast(`กำลังลบ ${ids.length} รายการ...`, '🗑️');
+    try {
+        const result = await callBackend(action, { adminCode, ids });
+        if (result.success) {
+            showToast(`ลบสำเร็จ ${result.deleted || ids.length} รายการ`, '✅');
+            loadAdminRecords(type);
+        } else {
+            showToast(result.error || 'ลบไม่สำเร็จ', '❌');
+        }
+    } catch (err) {
+        showToast('เกิดข้อผิดพลาดในการลบข้อมูล', '⚠️');
     }
 }
 
