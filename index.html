@@ -475,9 +475,11 @@
         <!-- ── Sidebar ── -->
         <aside class="glass sidebar flex flex-col items-center py-6 gap-2 border-r"
             style="border-color:var(--glass-border); flex-shrink:0;">
-            <!-- Logo -->
-            <div
-                style="width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,#2563eb,#06b6d4);display:flex;align-items:center;justify-content:center;font-size:18px;margin-bottom:16px;box-shadow:0 4px 16px rgba(37,99,235,0.35);">
+            <!-- Logo — Click 5× to unlock Admin -->
+            <div id="logo-secret"
+                style="width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,#2563eb,#06b6d4);display:flex;align-items:center;justify-content:center;font-size:18px;margin-bottom:16px;box-shadow:0 4px 16px rgba(37,99,235,0.35);cursor:pointer;user-select:none;transition:transform 0.15s;"
+                onclick="secretAdminTrigger(this)"
+                title="Unified Hub">
                 ⚡</div>
 
             <div class="nav-item active" onclick="switchTab('qr')" id="tab-qr">
@@ -488,7 +490,8 @@
                 <span class="icon">📄</span>
                 PDF
             </div>
-            <div class="nav-item" onclick="switchTab('admin')" id="tab-admin">
+            <!-- Admin tab: hidden, revealed by secret trigger -->
+            <div class="nav-item" onclick="switchTab('admin')" id="tab-admin" style="display:none;">
                 <span class="icon">🛡️</span>
                 Admin
             </div>
@@ -512,7 +515,8 @@
                 <span class="icon">📄</span>
                 PDF
             </div>
-            <div class="bottom-nav-item" onclick="switchTab('admin')" id="tab-admin-mobile">
+            <!-- Admin mobile tab: hidden, revealed by secret trigger -->
+            <div class="bottom-nav-item" onclick="switchTab('admin')" id="tab-admin-mobile" style="display:none;">
                 <span class="icon">🛡️</span>
                 Admin
             </div>

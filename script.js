@@ -73,6 +73,39 @@ function switchTab(tab) {
     }
 }
 
+// ==================== SECRET ADMIN TRIGGER ====================
+let _secretClickCount = 0;
+let _secretClickTimer = null;
+
+function secretAdminTrigger(el) {
+    _secretClickCount++;
+
+    // Visual pulse on logo
+    el.style.transform = 'scale(0.88)';
+    setTimeout(() => { el.style.transform = 'scale(1)'; }, 120);
+
+    // Reset counter after 3 seconds of inactivity
+    clearTimeout(_secretClickTimer);
+    _secretClickTimer = setTimeout(() => { _secretClickCount = 0; }, 3000);
+
+    if (_secretClickCount >= 5) {
+        _secretClickCount = 0;
+        clearTimeout(_secretClickTimer);
+
+        // Show Admin nav items
+        const tabAdmin       = document.getElementById('tab-admin');
+        const tabAdminMobile = document.getElementById('tab-admin-mobile');
+        if (tabAdmin) tabAdmin.style.display = '';
+        if (tabAdminMobile) tabAdminMobile.style.display = '';
+
+        // Navigate to Admin
+        switchTab('admin');
+
+        // Subtle easter egg toast (no icon labeling "admin")
+        showToast('🔐 ยินดีต้อนรับ', '✨');
+    }
+}
+
 // ==================== ADMIN SYSTEM ====================
 
 function updateAdminUI() {
