@@ -488,6 +488,10 @@
                 <span class="icon">📄</span>
                 PDF
             </div>
+            <div class="nav-item" onclick="switchTab('admin')" id="tab-admin">
+                <span class="icon">🛡️</span>
+                Admin
+            </div>
 
             <!-- Spacer -->
             <div style="flex:1;"></div>
@@ -507,6 +511,10 @@
             <div class="bottom-nav-item" onclick="switchTab('pdf')" id="tab-pdf-mobile">
                 <span class="icon">📄</span>
                 PDF
+            </div>
+            <div class="bottom-nav-item" onclick="switchTab('admin')" id="tab-admin-mobile">
+                <span class="icon">🛡️</span>
+                Admin
             </div>
         </nav>
 
@@ -728,6 +736,71 @@
 
                 </div>
             </section>
+            <!-- ── Admin Section ── -->
+            <section id="section-admin" class="tab-content fade-up">
+                <div class="glass glass-mobile-padding" style="border-radius:24px;padding:32px;">
+                    <h2 style="font-family:'Outfit',sans-serif;font-size:20px;font-weight:700;margin-bottom:24px;display:flex;align-items:center;gap:10px;">
+                        <span style="width:36px;height:36px;background:rgba(59,130,246,0.15);border-radius:10px;display:flex;align-items:center;justify-content:center;">🛡️</span>
+                        Admin Dashboard
+                    </h2>
+
+                    <!-- Admin Login View -->
+                    <div id="admin-login-view" style="max-width:400px;margin:0 auto;text-align:center;padding:40px 0;">
+                        <div style="font-size:48px;margin-bottom:20px;">🔒</div>
+                        <h3 style="font-size:18px;font-weight:700;margin-bottom:12px;">พื้นที่สำหรับผู้ดูแลระบบ</h3>
+                        <p style="font-size:13px;color:#64748b;margin-bottom:24px;">กรุณากรอกรหัสผ่านเพื่อเข้าใช้งานระบบจัดการข้อมูล</p>
+                        
+                        <div style="margin-bottom:20px;">
+                            <input type="password" id="admin-password" class="field" placeholder="Admin Code" style="text-align:center;letter-spacing:0.5em;">
+                        </div>
+                        
+                        <button onclick="loginAdmin()" id="btn-admin-login" class="btn-primary" style="width:100%;">
+                            ยืนยันรหัสผ่าน ⚡
+                        </button>
+                    </div>
+
+                    <!-- Admin Dashboard View (Initially Hidden) -->
+                    <div id="admin-dashboard-view" style="display:none;">
+                        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));gap:20px;">
+                            
+                            <!-- QR Data Card -->
+                            <div class="glass" style="border-radius:20px;padding:24px;border:1px solid rgba(255,255,255,0.05);">
+                                <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+                                    <span style="font-size:24px;">📷</span>
+                                    <div>
+                                        <h4 style="font-size:15px;font-weight:700;">จัดการข้อมูล QR Code</h4>
+                                        <p style="font-size:12px;color:#64748b;">ลบประวัติการสร้าง QR Code ทั้งหมด</p>
+                                    </div>
+                                </div>
+                                <button onclick="clearData('QR')" class="btn-primary" style="background:linear-gradient(135deg,#ef4444,#dc2626);box-shadow:0 4px 16px rgba(239,68,68,0.3);">
+                                    ลบข้อมูล QR ทั้งหมด 🗑️
+                                </button>
+                            </div>
+
+                            <!-- PDF Data Card -->
+                            <div class="glass" style="border-radius:20px;padding:24px;border:1px solid rgba(255,255,255,0.05);">
+                                <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+                                    <span style="font-size:24px;">📄</span>
+                                    <div>
+                                        <h4 style="font-size:15px;font-weight:700;">จัดการข้อมูล PDF</h4>
+                                        <p style="font-size:12px;color:#64748b;">ลบประวัติการแปลงไฟล์ PDF ทั้งหมด</p>
+                                    </div>
+                                </div>
+                                <button onclick="clearData('PDF')" class="btn-primary" style="background:linear-gradient(135deg,#ef4444,#dc2626);box-shadow:0 4px 16px rgba(239,68,68,0.3);">
+                                    ลบข้อมูล PDF ทั้งหมด 🗑️
+                                </button>
+                            </div>
+
+                        </div>
+
+                        <div style="margin-top:32px;text-align:center;">
+                            <button onclick="logoutAdmin()" style="font-size:13px;color:#64748b;text-decoration:underline;cursor:pointer;">
+                                ออกจากระบบ Admin
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
 
         </div>
     </div>
@@ -767,6 +840,11 @@
             const activeSection = document.getElementById('section-' + tab);
             if (activeSection) {
                 activeSection.classList.add('active');
+            }
+
+            // 5. Admin specific check (Sync with script.js)
+            if (tab === 'admin' && typeof updateAdminUI === 'function') {
+                updateAdminUI();
             }
         };
 

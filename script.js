@@ -14,6 +14,7 @@ let currentBGColor = '#000000';
 let pdfDPI = 150;
 let convertedImages = [];
 let pdfTotalPages = 0;
+let isAdminAuthenticated = sessionStorage.getItem('isAdminAuth') === 'true';
 
 // ==================== INITIALIZATION ====================
 document.addEventListener('DOMContentLoaded', () => {
@@ -65,6 +66,88 @@ function switchTab(tab) {
     
     document.querySelectorAll('.tab-content').forEach(content => content.classList.add('hidden'));
     document.getElementById(`section-${tab}`).classList.remove('hidden');
+
+    // Admin specific check
+    if (tab === 'admin') {
+        updateAdminUI();
+    }
+}
+
+// ==================== ADMIN SYSTEM ====================
+
+function updateAdminUI() {
+    const loginView = document.getElementById('admin-login-view');
+    const dashboardView = document.getElementById('admin-dashboard-view');
+    
+    if (isAdminAuthenticated) {
+        loginView.style.display = 'none';
+        dashboardView.style.display = 'block';
+    } else {
+        loginView.style.display = 'block';
+        dashboardView.style.display = 'none';
+    }
+}
+
+async function loginAdmin() {
+    const passwordInput = document.getElementById('admin-password');
+    const code = passwordInput.value;
+    const btn = document.getElementById('btn-admin-login');
+
+    if (!code) {
+        showToast('กรุณากรอกรหัสผ่าน', '⚠️');
+        return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<span>กำลังตรวจสอบ...</span>';
+
+    try {
+        const result = await callBackend('verifyAdmin', { adminCode: code });
+        if (result.success) {
+            isAdminAuthenticated = true;
+            sessionStorage.setItem('isAdminAuth', 'true');
+            sessionStorage.setItem('adminCode', code); // Store for later actions
+            showToast('เข้าสู่ระบบ Admin สำเร็จ! 🛡️', '✨');
+            updateAdminUI();
+            passwordInput.value = '';
+        } else {
+            showToast('รหัสผ่านไม่ถูกต้อง', '❌');
+        }
+    } catch (err) {
+        showToast('เกิดข้อผิดพลาดในการตรวจสอบ', '⚠️');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<span>ยืนยันรหัสผ่าน ⚡</span>';
+    }
+}
+
+function logoutAdmin() {
+    isAdminAuthenticated = false;
+    sessionStorage.removeItem('isAdminAuth');
+    sessionStorage.removeItem('adminCode');
+    showToast('ออกจากระบบ Admin แล้ว', '🔓');
+    updateAdminUI();
+}
+
+async function clearData(type) {
+    const confirmed = confirm(`คุณแน่ใจหรือไม่ว่าต้องการลบข้อมูล ${type} ทั้งหมด? การกระทำนี้ไม่สามารถย้อนกลับได้`);
+    if (!confirmed) return;
+
+    const adminCode = sessionStorage.getItem('adminCode');
+    const action = type === 'QR' ? 'clearQRRecords' : 'clearPDFRecords';
+
+    showToast('กำลังลบข้อมูล...', '🗑️');
+
+    try {
+        const result = await callBackend(action, { adminCode });
+        if (result.success) {
+            showToast(`ลบข้อมูล ${type} สำเร็จ!`, '✅');
+        } else {
+            showToast(result.error || 'ลบข้อมูลไม่สำเร็จ', '❌');
+        }
+    } catch (err) {
+        showToast('เกิดข้อผิดพลาดในการสั่งลบข้อมูล', '⚠️');
+    }
 }
 
 // ==================== QR GENERATOR ====================
