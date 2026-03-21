@@ -456,6 +456,24 @@
                 font-size: 20px;
             }
         }
+    .expiry-input {
+        width: 44px;
+        padding: 2px 4px;
+        border-radius: 6px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        color: #94a3b8;
+        font-size: 11px;
+        font-weight: 600;
+        text-align: center;
+        transition: all 0.2s;
+    }
+    .expiry-input:focus {
+        outline: none;
+        border-color: rgba(59, 130, 246, 0.5);
+        background: rgba(255, 255, 255, 0.1);
+        color: #e2e8f0;
+    }
     </style>
 </head>
 
@@ -805,6 +823,12 @@
                             <div id="admin-pdf-loading" style="text-align:center;padding:40px;color:#64748b;font-size:13px;">กำลังโหลด...</div>
                             <div id="admin-pdf-list" style="display:none;max-height:440px;overflow-y:auto;"></div>
                             <div id="admin-pdf-empty" style="display:none;text-align:center;padding:40px;color:#64748b;font-size:13px;">ไม่มีข้อมูล PDF</div>
+                        </div>
+
+                        <div style="margin-top:32px;display:flex;flex-direction:column;align-items:center;gap:12px;">
+                            <button onclick="setupCleanupAutomation()" style="font-size:12px;color:rgba(59,130,246,0.6);text-decoration:none;cursor:pointer;background:rgba(59,130,246,0.05);padding:6px 12px;border-radius:8px;border:1px solid rgba(59,130,246,0.1);transition:all 0.2s;" onmouseenter="this.style.background='rgba(59,130,246,0.1)'" onmouseleave="this.style.background='rgba(59,130,246,0.05)'">
+                                ⚙️ ตั้งค่าระบบลบไฟล์อัตโนมัติ (ครั้งแรก)
+                            </button>
                         </div>
 
                     </div>

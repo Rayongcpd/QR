@@ -263,6 +263,7 @@ function renderRecords(type, records, container) {
             : `<strong style="color:#e2e8f0">${rec['Filename'] || rec[1] || 'ไฟล์'}</strong> · <span style="color:#94a3b8;font-size:11px;">${rec['Total Pages'] || rec[2] || '?'} หน้า · DPI ${rec['DPI'] || rec[3] || ''}</span>`;
         const dateVal = type === 'qr' ? rec.created_at : (rec['Timestamp'] || rec[0] || '');
         const dateStr = dateVal ? new Date(dateVal).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+        const expiryDays = rec.expiry_days || 365;
 
         const row = document.createElement('div');
         row.style.cssText = 'display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid rgba(255,255,255,0.04);transition:background 0.15s;cursor:pointer;border-radius:10px;';
@@ -272,7 +273,17 @@ function renderRecords(type, records, container) {
             <input type="checkbox" class="${type}-record-cb" data-id="${rowId}" style="width:16px;height:16px;cursor:pointer;flex-shrink:0;" onchange="updateSelectedCount('${type}')">
             <div style="flex:1;min-width:0;">
                 <div style="font-size:13px;line-height:1.4;">${label}</div>
-                <div style="font-size:11px;color:#475569;margin-top:2px;">${dateStr}</div>
+                <div style="font-size:11px;color:#475569;margin-top:2px;display:flex;align-items:center;gap:10px;">
+                    <span>${dateStr}</span>
+                    <span style="color:rgba(255,255,255,0.1)">|</span>
+                    <span style="display:flex;align-items:center;gap:4px;">
+                        ลบอัตโนมัติใน: 
+                        <input type="number" class="expiry-input" value="${expiryDays}" 
+                            onchange="updateRecordExpiry('${type}', '${rowId}', this.value)"
+                            onclick="event.stopPropagation()">
+                        วัน
+                    </span>
+                </div>
             </div>
         `;
         row.onclick = (e) => {
@@ -283,6 +294,45 @@ function renderRecords(type, records, container) {
         };
         container.appendChild(row);
     });
+}
+
+async function updateRecordExpiry(type, id, days) {
+    const adminCode = sessionStorage.getItem('adminCode');
+    const sheet = type === 'qr' ? 'QR_Data' : 'PDF_Data';
+    
+    try {
+        const result = await callBackend('updateExpiryDays', { 
+            adminCode, 
+            sheet, 
+            id, 
+            days: parseInt(days) 
+        });
+        
+        if (result.success) {
+            showToast('อัปเดตระยะเวลาลบอัตโนมัติสำเร็จ', '✅');
+        } else {
+            showToast(result.error || 'อัปเดตไม่สำเร็จ', '❌');
+        }
+    } catch (err) {
+        showToast('เกิดข้อผิดพลาดในการเชื่อมต่อ', '⚠️');
+    }
+}
+
+async function setupCleanupAutomation() {
+    const adminCode = sessionStorage.getItem('adminCode');
+    if (!confirm('ต้องการตั้งค่าระบบลบไฟล์อัตโนมัติให้ทำงานทุกวัน (เวลา 02:00 น.) ใช่หรือไม่?')) return;
+    
+    showToast('กำลังตั้งค่าระบบ...', '⚙️');
+    try {
+        const result = await callBackend('setupCleanupTrigger', { adminCode });
+        if (result.success) {
+            showToast(result.message || 'ตั้งค่าระบบลบอัตโนมัติสำเร็จ!', '✅');
+        } else {
+            showToast(result.error || 'ตั้งค่าไม่สำเร็จ', '❌');
+        }
+    } catch (err) {
+        showToast('เกิดข้อผิดพลาดในการเชื่อมต่อ', '⚠️');
+    }
 }
 
 function toggleSelectAll(type) {
