@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;700;800&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;700;800&family=Prompt:wght@300;400;500;600;700;800&display=swap"
         rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -362,6 +362,275 @@
             display: block;
         }
 
+        /* ══ AI CONTENT GENERATOR STYLES ══ */
+        .ai-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            align-items: start;
+        }
+
+        .ai-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .ai-preview {
+            position: sticky;
+            top: 24px;
+        }
+
+        .ai-card-header {
+            display: flex;
+            align-items: flex-start;
+            gap: 14px;
+            margin-bottom: 20px;
+        }
+
+        .ai-step-badge {
+            width: 32px;
+            height: 32px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, #10b981, #22d3ee);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: 800;
+            color: #fff;
+            flex-shrink: 0;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        .tone-pills {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .tone-pill {
+            padding: 8px 16px;
+            border-radius: 999px;
+            border: 1px solid rgba(255, 255, 255, 0.07);
+            background: rgba(15, 23, 42, 0.8);
+            font-size: 13px;
+            font-weight: 500;
+            color: #94a3b8;
+            cursor: pointer;
+            transition: all 0.25s;
+        }
+
+        .tone-pill:hover {
+            color: #e2e8f0;
+            border-color: rgba(255, 255, 255, 0.15);
+        }
+
+        .tone-pill.active {
+            background: #10b981;
+            border-color: #10b981;
+            color: #fff;
+            box-shadow: 0 0 16px rgba(16, 185, 129, 0.4);
+        }
+
+        .btn-ai-generate {
+            width: 100%;
+            padding: 16px;
+            border-radius: 16px;
+            background: linear-gradient(135deg, #059669, #10b981, #22d3ee);
+            background-size: 200% 200%;
+            animation: aiGradient 4s ease infinite;
+            color: #fff;
+            font-weight: 700;
+            font-size: 15px;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s;
+            box-shadow: 0 4px 24px rgba(16, 185, 129, 0.3);
+            margin-top: 20px;
+        }
+
+        @keyframes aiGradient {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .btn-ai-generate:hover {
+            filter: brightness(1.1);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 32px rgba(16, 185, 129, 0.45);
+        }
+
+        .btn-ai-generate:active { transform: scale(0.98); }
+
+        .btn-ai-generate:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .ai-spinner {
+            width: 18px;
+            height: 18px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            display: inline-block;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .ai-textarea-wrapper {
+            position: relative;
+        }
+
+        .ai-textarea {
+            width: 100%;
+            background: rgba(2, 6, 23, 0.5);
+            border: 1px solid rgba(255,255,255,0.07);
+            border-radius: 14px;
+            padding: 14px 18px;
+            font-size: 14px;
+            font-family: 'Prompt', sans-serif;
+            color: #e2e8f0;
+            outline: none;
+            resize: vertical;
+            min-height: 120px;
+            line-height: 1.7;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .ai-textarea:focus {
+            border-color: rgba(16, 185, 129, 0.5);
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+        }
+
+        .ai-textarea::placeholder { color: #475569; }
+
+        .ai-copy-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+            font-size: 16px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .ai-copy-btn:hover {
+            background: rgba(16, 185, 129, 0.2);
+            transform: scale(1.05);
+        }
+
+        .ai-canvas-container {
+            position: relative;
+            background: rgba(2, 6, 23, 0.5);
+            border-radius: 20px;
+            padding: 12px;
+            border: 1px solid rgba(255,255,255,0.05);
+            overflow: hidden;
+            margin-bottom: 16px;
+        }
+
+        .ai-canvas-container canvas {
+            width: 100%;
+            height: auto;
+            border-radius: 12px;
+            display: block;
+        }
+
+        .ai-canvas-placeholder {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+            transition: opacity 0.3s;
+        }
+
+        .ai-canvas-placeholder.hidden { opacity: 0; }
+
+        .ai-action-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .btn-ai-action {
+            width: 100%;
+            padding: 13px 20px;
+            border-radius: 14px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+        }
+
+        .btn-ai-download {
+            background: linear-gradient(135deg, #059669, #10b981);
+            color: #fff;
+            box-shadow: 0 4px 16px rgba(16, 185, 129, 0.3);
+        }
+
+        .btn-ai-download:hover {
+            filter: brightness(1.1);
+            transform: translateY(-1px);
+        }
+
+        .btn-ai-sample {
+            background: rgba(34, 211, 238, 0.08);
+            border: 1px solid rgba(34, 211, 238, 0.2) !important;
+            color: #22d3ee;
+        }
+
+        .btn-ai-sample:hover {
+            background: rgba(34, 211, 238, 0.14);
+            transform: translateY(-1px);
+        }
+
+        .btn-ai-drive {
+            background: transparent;
+            border: 1px solid rgba(139, 92, 246, 0.25) !important;
+            color: #a78bfa;
+        }
+
+        .btn-ai-drive:hover:not(:disabled) {
+            background: rgba(139, 92, 246, 0.06);
+        }
+
+        .btn-ai-drive:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        @media (max-width: 768px) {
+            .ai-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .ai-preview {
+                position: static;
+            }
+
+            .tone-pill {
+                padding: 6px 12px;
+                font-size: 12px;
+            }
+        }
+
         /* ── Label ── */
         .field-label {
             font-size: 11px;
@@ -490,6 +759,10 @@
                 <span class="icon">📄</span>
                 PDF
             </div>
+            <div class="nav-item" onclick="switchTab('ai')" id="tab-ai">
+                <span class="icon">🤖</span>
+                AI
+            </div>
             <!-- Admin tab: hidden, revealed by secret trigger -->
             <div class="nav-item" onclick="switchTab('admin')" id="tab-admin" style="display:none;">
                 <span class="icon">🛡️</span>
@@ -515,6 +788,10 @@
                 <span class="icon">📄</span>
                 PDF
             </div>
+            <div class="bottom-nav-item" onclick="switchTab('ai')" id="tab-ai-mobile">
+                <span class="icon">🤖</span>
+                AI
+            </div>
             <!-- Admin mobile tab: hidden, revealed by secret trigger -->
             <div class="bottom-nav-item" onclick="switchTab('admin')" id="tab-admin-mobile" style="display:none;">
                 <span class="icon">🛡️</span>
@@ -533,7 +810,7 @@
                             style="font-family:'Outfit',sans-serif;font-size:28px;font-weight:800;background:linear-gradient(90deg,#60a5fa,#22d3ee,#a78bfa);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;line-height:1.2;">
                             Unified Hub
                         </h1>
-                        <p style="font-size:13px;color:#64748b;margin-top:4px;">ระบบ QR Code & PDF Converter · CPD
+                        <p style="font-size:13px;color:#64748b;margin-top:4px;">ระบบ QR Code · PDF Converter · AI Content · CPD
                             Rayong</p>
                     </div>
                     <div style="display:flex;gap:8px;">
@@ -740,6 +1017,107 @@
 
                 </div>
             </section>
+
+            <!-- ══════════════════════════════════════════ -->
+            <!-- ── AI CONTENT GENERATOR Section ── -->
+            <!-- ══════════════════════════════════════════ -->
+            <section id="section-ai" class="tab-content fade-up">
+                <div class="ai-grid">
+
+                    <!-- ═══ Left: Controls ═══ -->
+                    <div class="ai-controls">
+
+                        <!-- Step 1: Topic -->
+                        <div class="glass" style="border-radius:24px;padding:28px;">
+                            <div class="ai-card-header">
+                                <span class="ai-step-badge">1</span>
+                                <div>
+                                    <h2 style="font-family:'Outfit',sans-serif;font-size:18px;font-weight:700;">หัวข้อคอนเทนต์</h2>
+                                    <p style="font-size:12px;color:#64748b;margin-top:2px;">กรอกหัวข้อที่ต้องการให้ AI สร้างเนื้อหาและ Infographic</p>
+                                </div>
+                            </div>
+
+                            <div>
+                                <p class="field-label">หัวข้อ / Topic</p>
+                                <input type="text" id="aiTopicInput" class="field" placeholder="เช่น: 5 วิธีดูแลสุขภาพจิตในที่ทำงาน" style="font-family:'Prompt',sans-serif;">
+                            </div>
+
+                            <div style="margin-top:16px;">
+                                <p class="field-label">โทนการเขียน / Tone</p>
+                                <div class="tone-pills">
+                                    <button class="tone-pill active" data-tone="fun" onclick="setAITone(this)">🎉 สนุกสนาน</button>
+                                    <button class="tone-pill" data-tone="professional" onclick="setAITone(this)">💼 มืออาชีพ</button>
+                                    <button class="tone-pill" data-tone="educational" onclick="setAITone(this)">📚 ให้ความรู้</button>
+                                    <button class="tone-pill" data-tone="inspiring" onclick="setAITone(this)">🌟 สร้างแรงบันดาลใจ</button>
+                                </div>
+                            </div>
+
+                            <button id="btnAIGenerate" class="btn-ai-generate" onclick="generateAIContent()">
+                                <span id="btnAIText">สร้างคอนเทนต์ ✨</span>
+                                <span id="btnAILoading" style="display:none;">
+                                    <span class="ai-spinner"></span> กำลังสร้าง...
+                                </span>
+                            </button>
+                        </div>
+
+                        <!-- Step 2: Generated Text -->
+                        <div class="glass" style="border-radius:24px;padding:28px;">
+                            <div class="ai-card-header">
+                                <span class="ai-step-badge">2</span>
+                                <div>
+                                    <h2 style="font-family:'Outfit',sans-serif;font-size:18px;font-weight:700;">ข้อความที่สร้างขึ้น</h2>
+                                    <p style="font-size:12px;color:#64748b;margin-top:2px;">ข้อความสำหรับโพสต์ Social Media</p>
+                                </div>
+                            </div>
+
+                            <div class="ai-textarea-wrapper">
+                                <textarea id="aiGeneratedText" class="ai-textarea" rows="6"
+                                    placeholder="ข้อความจาก AI จะปรากฏที่นี่...&#10;&#10;กรอกหัวข้อและกด &quot;สร้างคอนเทนต์&quot; เพื่อเริ่มต้น" readonly></textarea>
+                                <button class="ai-copy-btn" id="btnAICopy" onclick="copyAIText()" title="คัดลอกข้อความ" style="display:none;">
+                                    📋
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ═══ Right: Preview ═══ -->
+                    <div class="ai-preview">
+                        <div class="glass" style="border-radius:24px;padding:28px;">
+                            <div class="ai-card-header">
+                                <span class="ai-step-badge">3</span>
+                                <div>
+                                    <h2 style="font-family:'Outfit',sans-serif;font-size:18px;font-weight:700;">Infographic Preview</h2>
+                                    <p style="font-size:12px;color:#64748b;margin-top:2px;">ภาพ 1080×1350 (4:5)</p>
+                                </div>
+                            </div>
+
+                            <!-- Canvas -->
+                            <div class="ai-canvas-container">
+                                <canvas id="infographicCanvas" width="1080" height="1350"></canvas>
+                                <div class="ai-canvas-placeholder" id="aiCanvasPlaceholder">
+                                    <div style="font-size:64px;opacity:0.12;margin-bottom:12px;">🎨</div>
+                                    <p style="font-size:16px;font-weight:600;color:#94a3b8;opacity:0.5;">Infographic จะแสดงที่นี่</p>
+                                    <p style="font-size:12px;color:#64748b;opacity:0.4;margin-top:4px;">กดปุ่มด้านล่างเพื่อดูตัวอย่าง</p>
+                                </div>
+                            </div>
+
+                            <!-- Action Buttons -->
+                            <div class="ai-action-buttons">
+                                <button class="btn-ai-action btn-ai-download" onclick="downloadInfographic()">
+                                    💾 ดาวน์โหลดภาพ PNG
+                                </button>
+                                <button class="btn-ai-action btn-ai-drive" onclick="saveAIToDrive()" disabled title="เร็วๆ นี้">
+                                    ☁️ บันทึกลง Drive
+                                </button>
+                                <button class="btn-ai-action btn-ai-sample" onclick="drawSampleInfographic()">
+                                    🎨 วาดตัวอย่าง Demo
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
             <!-- ── Admin Section ── -->
             <section id="section-admin" class="tab-content fade-up">
                 <div class="glass glass-mobile-padding" style="border-radius:24px;padding:32px;">
