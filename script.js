@@ -500,8 +500,8 @@ async function handlePDFUpload(e) {
             addPDFPreview(base64, i);
         }
 
-        if (area) area.classList.remove('hidden');
-        if (acts) acts.classList.remove('hidden');
+        document.getElementById('pdf-preview-area').classList.remove('hidden');
+        document.getElementById('pdf-result-actions').classList.remove('hidden');
         showToast('แปลงไฟล์ PDF สำเร็จ!', '📄');
 
     } catch (err) {
