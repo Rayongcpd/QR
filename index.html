@@ -263,30 +263,34 @@
             width: 48px;
             height: 26px;
             border-radius: 999px;
-            background: #1e293b;
+            background: #334155;
             position: relative;
             cursor: pointer;
-            transition: background 0.3s;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
         .toggle.on {
             background: #2563eb;
+            border-color: rgba(37, 99, 235, 0.5);
+            box-shadow: 0 0 12px rgba(37, 99, 235, 0.3);
         }
 
         .toggle-dot {
             position: absolute;
-            top: 3px;
-            left: 3px;
+            top: 2px;
+            left: 2px;
             width: 20px;
             height: 20px;
             border-radius: 50%;
             background: #fff;
-            transition: transform 0.3s;
-            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
         }
 
         .toggle.on .toggle-dot {
             transform: translateX(22px);
+            background: #fff;
         }
 
         /* ── Toast ── */
@@ -695,24 +699,13 @@
                         </div>
 
                         <!-- Settings Panel -->
-                        <div style="display:flex;flex-direction:column;gap:16px;">
+                        <div style="display:flex;flex-direction:column;gap:16px;justify-content:center;">
                             <div>
                                 <p class="field-label">ความละเอียด (DPI)</p>
                                 <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:10px;">
                                     <button onclick="setPDFDPI(150)" class="dpi-btn active" data-dpi="150">150</button>
                                     <button onclick="setPDFDPI(300)" class="dpi-btn" data-dpi="300">300</button>
                                     <button onclick="setPDFDPI(600)" class="dpi-btn" data-dpi="600">600</button>
-                                </div>
-                            </div>
-                            <div
-                                style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;background:rgba(2,6,23,0.4);border:1px solid rgba(255,255,255,0.05);border-radius:14px;">
-                                <div>
-                                    <p style="font-size:13px;font-weight:600;color:#cbd5e1;">Auto-save Drive</p>
-                                    <p style="font-size:11px;color:#475569;">บันทึกอัตโนมัติ</p>
-                                </div>
-                                <div class="toggle on" id="pdf-auto-save-wrapper" onclick="toggleAutoSave(this)">
-                                    <input type="checkbox" id="pdf-auto-save" style="display:none;" checked>
-                                    <div class="toggle-dot"></div>
                                 </div>
                             </div>
                         </div>
@@ -750,7 +743,7 @@
                             style="padding:12px 24px;border-radius:14px;background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;font-weight:700;font-size:14px;border:none;cursor:pointer;transition:all 0.2s;box-shadow:0 4px 16px rgba(124,58,237,0.3);">
                             📦 ดาวน์โหลด ZIP
                         </button>
-                        <button onclick="savePDFToDrive()"
+                        <button onclick="savePDFToDrive()" id="pdf-save-btn"
                             style="padding:12px 24px;border-radius:14px;background:transparent;border:1px solid rgba(168,85,247,0.25);color:#c084fc;font-weight:700;font-size:14px;cursor:pointer;transition:all 0.2s;">
                             ☁️ บันทึกลง Drive
                         </button>
@@ -881,12 +874,6 @@
             }
         };
 
-        // 2. Override toggleAutoSave UI
-        window.toggleAutoSave = function(el) {
-            el.classList.toggle('on');
-            const checkbox = document.getElementById('pdf-auto-save');
-            if (checkbox) checkbox.checked = el.classList.contains('on');
-        };
 
         // 3. Patch generateQR to show actions
         const origGenerateQR = window.generateQR;

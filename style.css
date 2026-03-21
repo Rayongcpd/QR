@@ -168,12 +168,3 @@ input:focus, textarea:focus {
     opacity: 1 !important;
     transform: translate(-50%, -20px) !important;
 }
-
-/* Toggle Switch */
-.toggle-active {
-    background-color: #a855f7 !important;
-}
-
-.toggle-active div {
-    transform: translateX(1.5rem) !important;
-}

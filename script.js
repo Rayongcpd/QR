@@ -36,22 +36,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('pdf-upload').addEventListener('change', handlePDFUpload);
 
-    // Auto-save toggle UI
-    const toggleWrapper = document.getElementById('pdf-auto-save-wrapper');
-    const toggleInput = document.getElementById('pdf-auto-save');
-    const toggleDot = document.getElementById('pdf-toggle-dot');
-    
-    toggleWrapper.addEventListener('click', () => {
-        toggleInput.checked = !toggleInput.checked;
-        if (toggleInput.checked) {
-            toggleWrapper.classList.add('toggle-active');
-            toggleDot.style.transform = 'translateX(1.5rem)';
-        } else {
-            toggleWrapper.classList.remove('toggle-active');
-            toggleDot.style.transform = 'translateX(0)';
-        }
-    });
-
     // Worker Init for PDF.js
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 });
@@ -516,14 +500,9 @@ async function handlePDFUpload(e) {
             addPDFPreview(base64, i);
         }
 
-        document.getElementById('pdf-preview-area').classList.remove('hidden');
-        document.getElementById('pdf-result-actions').classList.remove('hidden');
+        if (area) area.classList.remove('hidden');
+        if (acts) acts.classList.remove('hidden');
         showToast('แปลงไฟล์ PDF สำเร็จ!', '📄');
-
-        // Auto-save to Drive if checked
-        if (document.getElementById('pdf-auto-save').checked) {
-            savePDFToDrive(file.name);
-        }
 
     } catch (err) {
         showToast('เกิดข้อผิดพลาดในการโหลด PDF', '⚠️');
@@ -554,18 +533,42 @@ function addPDFPreview(base64, num) {
 async function savePDFToDrive(filename) {
     if (!convertedImages.length) return;
     
-    showToast('กำลังบันทึกลง Google Drive...', '☁️');
+    const btn = document.getElementById('pdf-save-btn') || { innerHTML: '', disabled: false };
+    const originalText = btn.innerHTML;
     
-    const result = await callBackend('savePDFConversion', {
-        filename: filename || 'converted_pdf',
-        images: convertedImages,
-        dpi: pdfDPI
-    });
+    btn.disabled = true;
+    btn.innerHTML = '<span>กำลังบันทึก...</span>';
+    showToast('กำลังบันทึกหน้าภาพลง Google Drive...', '☁️');
     
-    if (result.success) {
-        showToast('บันทึกลง Drive สำเร็จ!', '✅');
-    } else {
-        showToast('บันทึกลง Drive ไม่สำเร็จ', '❌');
+    try {
+        const result = await callBackend('savePDFConversion', {
+            filename: filename || document.getElementById('pdf-label').textContent || 'converted_pdf',
+            images: convertedImages,
+            dpi: pdfDPI
+        });
+        
+        if (result.success) {
+            showToast('บันทึกลง Drive สำเร็จ! ✅', '✨');
+            btn.innerHTML = '<span>✅ บันทึกแล้ว</span>';
+            btn.style.background = 'rgba(34, 197, 94, 0.2)';
+            btn.style.color = '#4ade80';
+            btn.style.borderColor = 'rgba(34, 197, 94, 0.4)';
+            
+            if (result.folderUrl) {
+                // Optionally make it clickable to open the folder
+                btn.onclick = () => window.open(result.folderUrl, '_blank');
+                btn.title = 'คลิกเพื่อเปิดโฟลเดอร์';
+                btn.disabled = false;
+            }
+        } else {
+            showToast('บันทึกลง Drive ไม่สำเร็จ: ' + (result.error || 'Unknown error'), '❌');
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+    } catch (err) {
+        showToast('เกิดข้อผิดพลาดในการเชื่อมต่อ', '⚠️');
+        btn.disabled = false;
+        btn.innerHTML = originalText;
     }
 }
 
