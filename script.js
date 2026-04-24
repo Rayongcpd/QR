@@ -648,17 +648,19 @@ function handleDocCompare() {
     resultsArea.style.display = 'block';
     resultsArea.scrollIntoView({ behavior: 'smooth' });
 
-    // Diffing Logic with fallback for library name
+    // Diffing Logic with robust library check
     let dmp;
     try {
         if (typeof diff_match_patch !== 'undefined') {
             dmp = new diff_match_patch();
+        } else if (window.diff_match_patch) {
+            dmp = new window.diff_match_patch();
         } else {
-            throw new Error('diff_match_patch library not loaded');
+            throw new Error('diff_match_patch library not found in global scope');
         }
     } catch (e) {
-        console.error(e);
-        showToast('ไม่พบไลบรารีสำหรับการเปรียบเทียบข้อความ', '❌');
+        console.error('Diff Library Error:', e);
+        showToast('ไม่พบไลบรารีสำหรับการเปรียบเทียบข้อความ (ลองรีเฟรชหน้าจอ)', '❌');
         return;
     }
     
