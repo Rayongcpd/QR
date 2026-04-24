@@ -684,13 +684,22 @@ function handleDocCompare() {
         }
     });
 
-    document.getElementById('dg-diff-left').innerHTML = leftHtml;
-    document.getElementById('dg-diff-right').innerHTML = rightHtml;
-    document.getElementById('dg-summary-bar').innerHTML = `
-        <div class="summary-item"><span style="color:#ef4444">●</span> ลบออก ${removedCount}</div>
-        <div class="summary-item"><span style="color:#10b981">●</span> เพิ่มใหม่ ${addedCount}</div>
-    `;
+    const leftEl = document.getElementById('dg-diff-left');
+    const rightEl = document.getElementById('dg-diff-right');
+    const summaryEl = document.getElementById('dg-summary-bar');
 
+    if (leftEl) leftEl.innerHTML = leftHtml;
+    if (rightEl) rightEl.innerHTML = rightHtml;
+
+    // Summary Bar with safety check
+    if (summaryEl) {
+        summaryEl.innerHTML = `
+            <div class="summary-item"><span style="color:#ef4444">●</span> ลบ ${removedCount}</div>
+            <div class="summary-item"><span style="color:#10b981">●</span> เพิ่ม ${addedCount}</div>
+        `;
+    }
+
+    // AI Analysis
     analyzeWithAI(t2);
 }
 
