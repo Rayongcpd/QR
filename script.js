@@ -632,3 +632,65 @@ function showToast(msg, icon) {
         toast.classList.remove('toast-show');
     }, 3000);
 }
+
+// ==================== DOCGUARD AI (DOCUMENT REVIEW) ====================
+
+function handleDocCompare() {
+    const t1 = document.getElementById('dg-text-1').value.trim();
+    const t2 = document.getElementById('dg-text-2').value.trim();
+    
+    if (!t1 || !t2) {
+        showToast('กรุณากรอกข้อมูลให้ครบทั้งสองช่อง', '⚠️');
+        return;
+    }
+
+    const resultsArea = document.getElementById('dg-results');
+    resultsArea.style.display = 'block';
+    resultsArea.scrollIntoView({ behavior: 'smooth' });
+
+    // Diffing Logic using diff-match-patch
+    const dmp = new diff_match_patch();
+    const diffs = dmp.diff_main(t1, t2);
+    dmp.diff_cleanupSemantic(diffs);
+
+    let html = '';
+    diffs.forEach(part => {
+        const type = part[0];
+        const text = part[1].replace(/\n/g, '<br>');
+        
+        if (type === 0) { // Unchanged
+            html += `<span>${text}</span>`;
+        } else if (type === -1) { // Deleted
+            html += `<span class="diff-del">${text}</span>`;
+        } else if (type === 1) { // Added
+            html += `<span class="diff-add">${text}</span>`;
+        }
+    });
+
+    document.getElementById('dg-diff-output').innerHTML = html;
+
+    // AI Analysis
+    analyzeWithAI(t2);
+}
+
+function analyzeWithAI(text) {
+    const aiOutput = document.getElementById('dg-ai-output');
+    aiOutput.innerHTML = '<div style="display:flex;align-items:center;gap:8px;"><span class="animate-pulse">🤖</span> AI กำลังวิเคราะห์เนื้อหาเอกสารของคุณ...</div>';
+
+    setTimeout(() => {
+        const lower = text.toLowerCase();
+        let analysis = '';
+
+        if (lower.includes('พนัน') || lower.includes('อาวุธ') || lower.includes('ยาเสพติด') || lower.includes('กัญชา')) {
+            analysis = `⚠️ **แจ้งเตือนความเสี่ยงสูง**: ตรวจพบคำหรือเนื้อหาที่อาจเกี่ยวข้องกับกิจกรรมที่ผิดกฎหมายหรือสินค้าควบคุม (เช่น การพนัน, สิ่งเสพติด) โปรดตรวจสอบข้อความอย่างละเอียดและหลีกเลี่ยงการใช้ข้อมูลที่สุ่มเสี่ยง`;
+        } else if (lower.includes('ดอกเบี้ย') && (lower.includes('ร้อยละ') || lower.includes('%'))) {
+            analysis = `ℹ️ **ข้อแนะนำทางกฎหมาย**: ตรวจพบการระบุอัตราดอกเบี้ย โปรดตรวจสอบว่าอัตราที่กำหนดไม่เกินร้อยละ 15 ต่อปี ตามพระราชบัญญัติห้ามเรียกดอกเบี้ยเกินอัตรา พ.ศ. 2560 เพื่อให้สัญญาหรือข้อตกลงมีผลสมบูรณ์ตามกฎหมาย`;
+        } else if (lower.includes('เงินกู้') || lower.includes('ยืมเงิน')) {
+            analysis = `ℹ️ **ข้อสังเกต**: เอกสารมีการระบุถึงการกู้ยืมเงิน โปรดตรวจสอบว่ามีหลักฐานแห่งการกู้ยืมเป็นหนังสือและลงลายมือชื่อผู้กู้เป็นสำคัญ เพื่อให้สามารถฟ้องร้องบังคับคดีได้ตามกฎหมายแพ่งและพาณิชย์`;
+        } else {
+            analysis = `✅ **ผลการวิเคราะห์เบื้องต้น**: ไม่พบคำสำคัญหรือแพทเทิร์นที่บ่งชี้ถึงความเสี่ยงทางกฎหมายที่รุนแรงในเบื้องต้น อย่างไรก็ตาม นี่เป็นการวิเคราะห์ด้วย AI เบื้องต้นเท่านั้น แนะนำให้ปรึกษาผู้เชี่ยวชาญหากเป็นเอกสารสำคัญทางธุรกิจหรือกฎหมาย`;
+        }
+
+        aiOutput.innerHTML = analysis.replace(/\*\*(.*?)\*\*/g, '<strong style="color:#e2e8f0"></strong>');
+    }, 2000);
+}

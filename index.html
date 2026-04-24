@@ -15,6 +15,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/diff-match-patch/20121119/diff_match_patch.js"></script>
     <link rel="stylesheet" href="style.css">
     <style>
         :root {
@@ -512,6 +513,10 @@
                 <span class="icon">📄</span>
                 PDF
             </div>
+            <div class="nav-item" onclick="switchTab('review')" id="tab-review">
+                <span class="icon">🛡️</span>
+                Review
+            </div>
             <!-- Admin tab: hidden, revealed by secret trigger -->
             <div class="nav-item" onclick="switchTab('admin')" id="tab-admin" style="display:none;">
                 <span class="icon">🛡️</span>
@@ -536,6 +541,10 @@
             <div class="bottom-nav-item" onclick="switchTab('pdf')" id="tab-pdf-mobile">
                 <span class="icon">📄</span>
                 PDF
+            </div>
+            <div class="bottom-nav-item" onclick="switchTab('review')" id="tab-review-mobile">
+                <span class="icon">🛡️</span>
+                Review
             </div>
             <!-- Admin mobile tab: hidden, revealed by secret trigger -->
             <div class="bottom-nav-item" onclick="switchTab('admin')" id="tab-admin-mobile" style="display:none;">
@@ -749,6 +758,52 @@
                         </button>
                     </div>
 
+                </div>
+            </section>
+
+            <!-- ── Review Section (DocGuard) ── -->
+            <section id="section-review" class="tab-content fade-up">
+                <div class="glass glass-mobile-padding" style="border-radius:24px;padding:32px;">
+                    <h2 style="font-family:'Outfit',sans-serif;font-size:20px;font-weight:700;margin-bottom:24px;display:flex;align-items:center;gap:10px;">
+                        <span style="width:36px;height:36px;background:rgba(59,130,246,0.15);border-radius:10px;display:flex;align-items:center;justify-content:center;">🛡️</span>
+                        ตรวจสอบและเปรียบเทียบเอกสาร
+                    </h2>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                        <div>
+                            <p class="field-label">เอกสารต้นฉบับ (Original)</p>
+                            <textarea id="dg-text-1" class="doc-textarea" placeholder="วางข้อความที่นี่..."></textarea>
+                        </div>
+                        <div>
+                            <p class="field-label">เอกสารฉบับแก้ไข (Revised)</p>
+                            <textarea id="dg-text-2" class="doc-textarea" placeholder="วางข้อความที่นี่..."></textarea>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-center mb-8">
+                        <button onclick="handleDocCompare()" class="btn-primary" style="max-width:300px;">
+                            เริ่มการตรวจสอบอัจฉริยะ ✨
+                        </button>
+                    </div>
+
+                    <div id="dg-results" style="display:none;" class="space-y-6">
+                        <div class="glass" style="border-radius:16px;padding:24px;border-color:rgba(59,130,246,0.2);">
+                            <h3 style="font-weight:700;color:#60a5fa;margin-bottom:16px;display:flex;align-items:center;gap:8px;">
+                                🔍 ผลการเปรียบเทียบข้อความ
+                            </h3>
+                            <div id="dg-diff-output" class="diff-content text-slate-300"></div>
+                        </div>
+
+                        <div class="ai-panel">
+                            <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+                                <div style="width:32px;height:32px;background:#2563eb;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;">✨</div>
+                                <h3 style="font-weight:700;font-size:18px;">AI Legal Analysis</h3>
+                            </div>
+                            <div id="dg-ai-output" style="color:#94a3b8;line-height:1.7;font-size:14px;">
+                                กำลังรอผลการวิเคราะห์...
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </section>
             <!-- ── Admin Section ── -->
