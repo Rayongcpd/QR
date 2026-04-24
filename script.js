@@ -876,7 +876,7 @@ async function runDeepAnalysis() {
         
         ตอบกลับเป็นภาษาไทย ในรูปแบบที่อ่านง่าย (ใช้ Bullet points และ Emoji)`;
 
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -892,7 +892,7 @@ async function runDeepAnalysis() {
         aiOutput.innerHTML = `
             <div style="margin-bottom:16px; display:flex; align-items:center; gap:10px;">
                 <span class="type-badge active" style="background:linear-gradient(90deg, #4285f4, #9b51e0); border:none; padding:4px 12px; color:white;">Gemini Deep Analysis</span>
-                <span style="font-size:11px; color:#64748b;">วิเคราะห์โดย AI 1.5 Flash</span>
+                <span style="font-size:11px; color:#64748b;">วิเคราะห์โดย AI 2.5 Flash (Latest 2026)</span>
             </div>
             <div class="ai-reasoning" style="padding:20px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); border-radius:16px; color:#cbd5e1; font-size:14px; line-height:1.8;">
                 ${analysisText.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}
