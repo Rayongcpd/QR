@@ -633,6 +633,7 @@ function showToast(msg, icon) {
     }, 3000);
 }
 
+
 // ==================== DOCGUARD AI (DOCUMENT REVIEW) ====================
 
 function handleDocCompare() {
@@ -703,24 +704,62 @@ function handleDocCompare() {
 
 function analyzeWithAI(text) {
     const aiOutput = document.getElementById('dg-ai-output');
-    aiOutput.innerHTML = '<div style="display:flex;align-items:center;gap:8px;"><span class="animate-pulse">🤖</span> AI กำลังวิเคราะห์เนื้อหาเอกสารของคุณ...</div>';
+    aiOutput.innerHTML = '<div style="display:flex;align-items:center;gap:8px;"><span class="animate-pulse">🤖</span> AI กำลังวิเคราะห์ความเสี่ยงทางกฎหมาย...</div>';
 
     setTimeout(() => {
         const lower = text.toLowerCase();
-        let analysis = '';
+        let status = 'safe';
+        let title = '✅ ตรวจสอบแล้ว: ไม่พบความเสี่ยง';
+        let analysis = 'ไม่พบคำสำคัญหรือแพทเทิร์นที่บ่งชี้ถึงความเสี่ยงทางกฎหมายที่รุนแรงในเบื้องต้น';
+        let keywords = [];
 
+        // Check for risks
         if (lower.includes('พนัน') || lower.includes('อาวุธ') || lower.includes('ยาเสพติด') || lower.includes('กัญชา')) {
-            analysis = `⚠️ **แจ้งเตือนความเสี่ยงสูง**: ตรวจพบคำหรือเนื้อหาที่อาจเกี่ยวข้องกับกิจกรรมที่ผิดกฎหมายหรือสินค้าควบคุม (เช่น การพนัน, สิ่งเสพติด) โปรดตรวจสอบข้อความอย่างละเอียดและหลีกเลี่ยงการใช้ข้อมูลที่สุ่มเสี่ยง`;
+            status = 'danger';
+            title = '❌ อันตราย: พบเนื้อหาที่อาจผิดกฎหมาย';
+            analysis = 'ตรวจพบเนื้อหาที่เกี่ยวข้องกับกิจกรรมที่ผิดกฎหมายหรือสินค้าควบคุม (เช่น การพนัน, สิ่งเสพติด) โปรดตรวจสอบข้อความอย่างละเอียดและหลีกเลี่ยงการใช้ข้อมูลที่สุ่มเสี่ยง';
+            keywords = ['พนัน', 'อาวุธ', 'ยาเสพติด', 'กัญชา'];
         } else if (lower.includes('ดอกเบี้ย') && (lower.includes('ร้อยละ') || lower.includes('%'))) {
-            analysis = `ℹ️ **ข้อแนะนำทางกฎหมาย**: ตรวจพบการระบุอัตราดอกเบี้ย โปรดตรวจสอบว่าอัตราที่กำหนดไม่เกินร้อยละ 15 ต่อปี ตามพระราชบัญญัติห้ามเรียกดอกเบี้ยเกินอัตรา พ.ศ. 2560 เพื่อให้สัญญาหรือข้อตกลงมีผลสมบูรณ์ตามกฎหมาย`;
+            status = 'warning';
+            title = '⚠️ ควรระวัง: มีความเสี่ยงทางสัญญา';
+            analysis = 'ตรวจพบการระบุอัตราดอกเบี้ย โปรดตรวจสอบว่าอัตราที่กำหนดไม่เกินร้อยละ 15 ต่อปี ตามพระราชบัญญัติห้ามเรียกดอกเบี้ยเกินอัตรา พ.ศ. 2560';
+            keywords = ['ดอกเบี้ย', 'ร้อยละ', '%'];
         } else if (lower.includes('เงินกู้') || lower.includes('ยืมเงิน')) {
-            analysis = `ℹ️ **ข้อสังเกต**: เอกสารมีการระบุถึงการกู้ยืมเงิน โปรดตรวจสอบว่ามีหลักฐานแห่งการกู้ยืมเป็นหนังสือและลงลายมือชื่อผู้กู้เป็นสำคัญ เพื่อให้สามารถฟ้องร้องบังคับคดีได้ตามกฎหมายแพ่งและพาณิชย์`;
-        } else {
-            analysis = `✅ **ผลการวิเคราะห์เบื้องต้น**: ไม่พบคำสำคัญหรือแพทเทิร์นที่บ่งชี้ถึงความเสี่ยงทางกฎหมายที่รุนแรงในเบื้องต้น อย่างไรก็ตาม นี่เป็นการวิเคราะห์ด้วย AI เบื้องต้นเท่านั้น แนะนำให้ปรึกษาผู้เชี่ยวชาญหากเป็นเอกสารสำคัญทางธุรกิจหรือกฎหมาย`;
+            status = 'warning';
+            title = '⚠️ ควรระวัง: ตรวจสอบหลักฐาน';
+            analysis = 'มีการระบุถึงการกู้ยืมเงิน โปรดตรวจสอบว่ามีหลักฐานแห่งการกู้ยืมเป็นหนังสือและลงลายมือชื่อผู้กู้เป็นสำคัญ';
+            keywords = ['เงินกู้', 'ยืมเงิน'];
         }
 
-        aiOutput.innerHTML = analysis.replace(/\*\*(.*?)\*\*/g, '<strong style="color:#e2e8f0"></strong>');
-    }, 2000);
+        // 1. Build HTML with Badge
+        aiOutput.innerHTML = `
+            <div class="status-badge status-${status}">
+                <span>${status === 'safe' ? '🛡️' : status === 'warning' ? '⚠️' : '🚨'}</span>
+                ${title}
+            </div>
+            <div class="ai-reasoning text-slate-300">
+                ${analysis.replace(/\\*\\*(.*?)\\*\\*/g, '<strong style="color:#e2e8f0"></strong>')}
+            </div>
+        `;
+
+        // 2. Perform Highlighting in the Diff View
+        if (keywords.length > 0) {
+            highlightRiskKeywords(keywords);
+        }
+    }, 1500);
+}
+
+function highlightRiskKeywords(keywords) {
+    const rightCol = document.getElementById('dg-diff-right');
+    let content = rightCol.innerHTML;
+
+    keywords.forEach(word => {
+        const regex = new RegExp(word, 'gi');
+        content = content.replace(regex, `<span class="ai-highlight">$&</span>`);
+    });
+
+    rightCol.innerHTML = content;
+    showToast('AI ตรวจพบจุดที่ต้องระวังและไฮไลท์ให้แล้ว', '✨');
 }
 
 // Handle PDF Upload for Review Section
