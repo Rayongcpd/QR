@@ -38,6 +38,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Worker Init for PDF.js
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+    // Gemini API Init
+    const geminiInput = document.getElementById('gemini-api-key');
+    if (geminiInput) {
+        geminiInput.value = localStorage.getItem('gemini_api_key') || '';
+        geminiInput.addEventListener('input', (e) => {
+            localStorage.setItem('gemini_api_key', e.target.value);
+            updateGeminiUI();
+        });
+    }
+    updateGeminiUI();
 });
 
 // ==================== CORE FUNCTIONS ====================
@@ -633,7 +644,6 @@ function showToast(msg, icon) {
     }, 3000);
 }
 
-
 // ==================== DOCGUARD AI (DOCUMENT REVIEW & LEARNING) ====================
 
 let customRules = JSON.parse(localStorage.getItem('ai_custom_rules')) || [];
@@ -691,7 +701,6 @@ function handleDocCompare() {
     if (leftEl) leftEl.innerHTML = leftHtml;
     if (rightEl) rightEl.innerHTML = rightHtml;
 
-    // Summary Bar with safety check
     if (summaryEl) {
         summaryEl.innerHTML = `
             <div class="summary-item"><span style="color:#ef4444">●</span> ลบ ${removedCount}</div>
@@ -699,57 +708,100 @@ function handleDocCompare() {
         `;
     }
 
-    // AI Analysis
     analyzeWithAI(t2);
 }
 
 function analyzeWithAI(text) {
     const aiOutput = document.getElementById('dg-ai-output');
-    aiOutput.innerHTML = '<div style="display:flex;align-items:center;gap:8px;"><span class="animate-pulse">🤖</span> AI นิติกรกำลังวิเคราะห์เชิงลึก...</div>';
+    aiOutput.innerHTML = '<div style="display:flex;align-items:center;gap:12px;padding:12px;background:rgba(59,130,246,0.05);border-radius:12px;border:1px solid rgba(59,130,246,0.1);"><div class="ai-loader-pulse"></div> <span style="color:#60a5fa;font-weight:600;">🤖 AI Legal Analyst กำลังประมวลผลกฎหมายที่เกี่ยวข้อง...</span></div>';
 
     setTimeout(() => {
         const lower = text.toLowerCase();
         let findings = [];
         let allKeywords = [];
 
-        // --- 1. Cooperative Act & Membership ---
-        if (lower.includes('พ้นจากสมาชิกภาพ')) {
-            findings.push({ status: 'warning', title: '🏛️ พ.ร.บ. สหกรณ์: การพ้นสมาชิกภาพ', analysis: 'โปรดตรวจสอบว่าเงื่อนไขการพ้นสมาชิกภาพสอดคล้องกับข้อบังคับมาตรฐานที่นายทะเบียนสหกรณ์กำหนด', keywords: ['พ้นจากสมาชิกภาพ'] });
+        // --- 1. Labor Protection Act ---
+        if (lower.includes('ลาป่วย')) {
+            const match = text.match(/ลาป่วยได้\s*(\d+)\s*(?:วัน)/);
+            if (match && parseInt(match[1]) < 30) {
+                findings.push({ 
+                    status: 'danger', 
+                    title: '🚨 ขัดกฎหมายแรงงาน: สิทธิลาป่วย', 
+                    analysis: 'พ.ร.บ. คุ้มครองแรงงาน มาตรา 32 กำหนดให้ลูกจ้างมีสิทธิลาป่วยได้ **"เท่าที่ป่วยจริง"** และได้รับค่าจ้าง 30 วัน/ปี การจำกัดสิทธิน้อยกว่านี้ถือเป็นโมฆะ',
+                    keywords: ['ลาป่วย', match[1]] 
+                });
+            }
         }
-        if (lower.includes('ถือหุ้น')) {
-            findings.push({ status: 'safe', title: '🏛️ พ.ร.บ. สหกรณ์: การถือหุ้น', analysis: 'มีการระบุเรื่องการถือหุ้น โปรดตรวจสอบสัดส่วนการถือหุ้นสูงสุดไม่ให้เกินที่กฎหมายกำหนด', keywords: ['ถือหุ้น'] });
+        
+        if (lower.includes('ลาคลอด')) {
+            const match = text.match(/ลาคลอดได้\s*(\d+)\s*(?:วัน)/);
+            if (match && parseInt(match[1]) < 98) {
+                findings.push({ 
+                    status: 'danger', 
+                    title: '🚨 ขัดกฎหมายแรงงาน: ลาคลอด', 
+                    analysis: 'สิทธิลาคลอดบุตรไม่เกิน **98 วัน** (มาตรา 41) หากกำหนดน้อยกว่านี้ถือว่าขัดต่อกฎหมายความสงบเรียบร้อย',
+                    keywords: ['ลาคลอด', match[1]] 
+                });
+            }
         }
 
-        // --- 2. PDPA (Privacy) ---
-        if (!lower.includes('ยินยอม') && !lower.includes('consent') && (lower.includes('ข้อมูล') || lower.includes('เก็บรักษา'))) {
-            findings.push({ status: 'danger', title: '🚨 ความเสี่ยง PDPA: ขาดข้อความยินยอม', analysis: 'ไม่พบข้อความขอความยินยอม (Consent Clause) ในการเก็บรวบรวมข้อมูลส่วนบุคคล **มีความเสี่ยงสูงต่อการถูกร้องเรียนและโทษปรับทางปกครอง**', keywords: ['ข้อมูล'] });
+        if (lower.includes('ลากิจ')) {
+            const match = text.match(/ลากิจได้\s*(\d+)\s*(?:วัน)/);
+            if (match && parseInt(match[1]) < 3) {
+                findings.push({ 
+                    status: 'danger', 
+                    title: '🚨 ขัดกฎหมายแรงงาน: ลากิจ', 
+                    analysis: 'ลูกจ้างมีสิทธิลากิจธุระอันจำเป็นได้ไม่น้อยกว่า **3 วันทำงานต่อปี** โดยได้รับค่าจ้าง (มาตรา 34)',
+                    keywords: ['ลากิจ', match[1]] 
+                });
+            }
         }
 
-        // --- 3. Guarantee Law (ค้ำประกัน) ---
-        if (lower.includes('ค้ำประกัน') && lower.includes('ลูกหนี้ร่วม')) {
-            findings.push({ status: 'danger', title: '🚨 ผิดกฎหมายค้ำประกัน: ลูกหนี้ร่วม', analysis: 'ตามกฎหมายใหม่ **ผู้ค้ำประกันห้ามรับผิดอย่างลูกหนี้ร่วม** ข้อตกลงนี้จะตกเป็นโมฆะและสหกรณ์อาจเสียสิทธิในการบังคับคดี', keywords: ['ลูกหนี้ร่วม', 'ค้ำประกัน'] });
+        // --- 2. Unfair Contract Terms ---
+        if (lower.includes('ไม่รับผิดชอบทุกกรณี') || lower.includes('ไม่รับผิดชอบต่อความเสียหาย')) {
+            findings.push({ 
+                status: 'danger', 
+                title: '🚨 ข้อสัญญาที่ไม่เป็นธรรม: การยกเว้นความรับผิด', 
+                analysis: 'การยกเว้นความรับผิดล่วงหน้าสำหรับความประมาทเลินเล่อ อาจถือเป็น **"ข้อสัญญาที่ไม่เป็นธรรม"** และไม่มีผลบังคับตามกฎหมาย',
+                keywords: ['ไม่รับผิดชอบทุกกรณี', 'ไม่รับผิดชอบต่อความเสียหาย'] 
+            });
         }
 
-        // --- 4. Interest & Loan ---
+        // --- 3. Civil and Commercial Code ---
         const intMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:%|ร้อยละ|เปอร์เซ็นต์)/i);
         if (lower.includes('ดอกเบี้ย') && intMatch) {
             const rate = parseFloat(intMatch[1]);
             if (rate > 15) {
-                findings.push({ status: 'danger', title: '🚨 ดอกเบี้ยเกินอัตรา (ร้อยละ ' + rate + ')', analysis: 'เกินกว่าที่กฎหมายกำหนด (15% ต่อปี) **เสี่ยงต่อการถูกร้องเรียนและสัญญาเป็นโมฆะ**', keywords: ['ดอกเบี้ย', intMatch[1]] });
-            } else {
-                findings.push({ status: 'safe', title: '✅ ดอกเบี้ยถูกกฎหมาย (ร้อยละ ' + rate + ')', analysis: 'สอดคล้องกับกฎหมายแพ่งและพาณิชย์', keywords: [] });
+                findings.push({ 
+                    status: 'danger', 
+                    title: '🚨 ดอกเบี้ยเกินอัตรา (ร้อยละ ' + rate + ')', 
+                    analysis: 'ห้ามคิดดอกเบี้ยเกิน **ร้อยละ 15 ต่อปี** (ป.พ.พ. มาตรา 654) หากฝ่าฝืนดอกเบี้ยตกเป็นโมฆะทั้งหมด',
+                    keywords: ['ดอกเบี้ย', intMatch[1]] 
+                });
             }
         }
 
-        // --- 5. Labor Law ---
-        if (lower.includes('ลากิจ')) {
-            const match = text.match(/(\d+)\s*(?:วัน)/);
-            if (match && parseInt(match[1]) < 3) {
-                findings.push({ status: 'danger', title: '🚨 ผิดกฎหมายแรงงาน: ลากิจ', analysis: 'สิทธิลากิจต้องไม่น้อยกว่า 3 วันทำงาน/ปี โดยได้รับค่าจ้าง', keywords: ['ลากิจ', match[1]] });
-            }
+        if (lower.includes('ค้ำประกัน') && (lower.includes('ลูกหนี้ร่วม') || lower.includes('รับผิดอย่างลูกหนี้ร่วม'))) {
+            findings.push({ 
+                status: 'danger', 
+                title: '🚨 ผิดกฎหมายค้ำประกันใหม่', 
+                analysis: 'ข้อตกลงที่ให้ผู้ค้ำประกันต้องรับผิดอย่าง **"ลูกหนี้ร่วม"** กับลูกหนี้ชั้นต้น ให้ตกเป็น **"โมฆะ"** (ป.พ.พ. มาตรา 681/1)',
+                keywords: ['ลูกหนี้ร่วม', 'ค้ำประกัน'] 
+            });
         }
 
-        // --- 6. SELF-LEARNING RULES (Custom Rules) ---
+        // --- 4. PDPA ---
+        const pdpaKeywords = ['ข้อมูลส่วนบุคคล', 'เปิดเผยข้อมูล', 'เก็บรวบรวม'];
+        if (pdpaKeywords.some(k => lower.includes(k)) && !lower.includes('ยินยอม') && !lower.includes('consent')) {
+            findings.push({ 
+                status: 'danger', 
+                title: '🚨 ความเสี่ยง PDPA: ขาด Consent Clause', 
+                analysis: 'ไม่พบข้อความขอความยินยอม (Consent) ในการจัดการข้อมูลส่วนบุคคล **เสี่ยงต่อโทษปรับทางปกครองสูงสุด 5 ล้านบาท**',
+                keywords: ['ข้อมูลส่วนบุคคล', 'เปิดเผยข้อมูล'] 
+            });
+        }
+
+        // --- 5. Custom Rules ---
         customRules.forEach(rule => {
             if (lower.includes(rule.keyword.toLowerCase())) {
                 findings.push({ status: rule.status, title: '🧠 กฎที่เรียนรู้ใหม่: ' + rule.keyword, analysis: rule.reason, keywords: [rule.keyword] });
@@ -758,32 +810,114 @@ function analyzeWithAI(text) {
 
         // Rendering
         if (findings.length === 0) {
-            aiOutput.innerHTML = '<div class="status-badge status-safe">🛡️ ไม่พบความเสี่ยงร้ายแรง</div><div class="ai-reasoning">วิเคราะห์เบื้องต้นไม่พบจุดขัดกฎหมายหลัก</div>';
+            aiOutput.innerHTML = `
+                <div class="status-badge status-safe" style="padding:16px; border-radius:16px;">🛡️ ระบบไม่พบความเสี่ยงทางกฎหมายที่ชัดเจน</div>
+                <div class="ai-reasoning" style="margin-top:16px; padding:20px; background:rgba(16,185,129,0.05); border:1px solid rgba(16,185,129,0.1); border-radius:12px;">
+                    <p style="color:#10b981; font-weight:700;">✅ ผลการวิเคราะห์เบื้องต้น:</p>
+                    <p style="color:#94a3b8; font-size:13px;">ไม่พบจุดขัดกฎหมายหลักแรงงาน, ป.พ.พ., และ PDPA</p>
+                </div>`;
         } else {
-            let html = '';
+            let html = `<div style="margin-bottom:16px; font-size:12px; color:#64748b; font-weight:600;">พบความเสี่ยง ${findings.length} รายการ</div>`;
             findings.forEach(f => {
-                html += `<div class="status-badge status-${f.status}" style="margin-bottom:8px;"><span>${f.status === 'safe' ? '🛡️' : f.status === 'warning' ? '⚠️' : '🚨'}</span> ${f.title}</div>
-                         <div class="ai-reasoning text-slate-300" style="margin-bottom:16px;">${f.analysis.replace(/\\*\\*(.*?)\\*\\*/g, '<strong style="color:#e2e8f0"></strong>')}</div>`;
+                const icon = f.status === 'danger' ? '🚨' : f.status === 'warning' ? '⚠️' : '🛡️';
+                html += `
+                    <div style="margin-bottom:16px; border:1px solid rgba(255,255,255,0.05); border-radius:12px; overflow:hidden; background:rgba(15,23,42,0.2);">
+                        <div class="status-badge status-${f.status}" style="border-radius:0; border:none; padding:10px 16px; font-weight:700;">${icon} ${f.title}</div>
+                        <div class="ai-reasoning" style="padding:16px; color:#cbd5e1; font-size:13px; line-height:1.6;">${f.analysis.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}</div>
+                    </div>`;
                 allKeywords = [...allKeywords, ...f.keywords];
             });
             aiOutput.innerHTML = html;
             if (allKeywords.length > 0) highlightRiskKeywords(allKeywords);
         }
+        updateGeminiUI();
     }, 1500);
+}
+
+function updateGeminiUI() {
+    const key = localStorage.getItem('gemini_api_key');
+    const actionEl = document.getElementById('gemini-action');
+    if (actionEl) actionEl.style.display = key ? 'block' : 'none';
+}
+
+function toggleGeminiSettings() {
+    const config = document.getElementById('gemini-config');
+    config.style.display = config.style.display === 'none' ? 'block' : 'none';
+}
+
+async function runDeepAnalysis() {
+    const text = document.getElementById('dg-text-2').value.trim();
+    const key = localStorage.getItem('gemini_api_key');
+    
+    if (!text) { showToast('กรุณากรอกข้อความเพื่อวิเคราะห์', '⚠️'); return; }
+    if (!key) { showToast('กรุณาตั้งค่า Gemini API Key', '⚠️'); return; }
+
+    const aiOutput = document.getElementById('dg-ai-output');
+    const originalContent = aiOutput.innerHTML;
+    
+    aiOutput.innerHTML = `
+        <div style="padding:20px; border:1px solid rgba(59,130,246,0.2); border-radius:16px; background:rgba(59,130,246,0.05);">
+            <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px;">
+                <div class="ai-loader-pulse"></div>
+                <strong style="color:#60a5fa;">Google Gemini 1.5 Flash กำลังวิเคราะห์เจาะลึก...</strong>
+            </div>
+            <p style="font-size:12px; color:#64748b;">ระบบกำลังตรวจสอบความสอดคล้องทางกฎหมาย, ความเสี่ยงแฝง, และข้อแนะนำเชิงลึก</p>
+        </div>
+    `;
+
+    try {
+        const prompt = `ในฐานะนิติกรผู้เชี่ยวชาญกฎหมายไทย โปรดวิเคราะห์ข้อความต่อไปนี้อย่างละเอียด:
+        1. ตรวจสอบความสอดคล้องกับกฎหมายแรงงาน, กฎหมายแพ่งและพาณิชย์, PDPA, และพ.ร.บ.ว่าด้วยข้อสัญญาที่ไม่เป็นธรรม
+        2. ระบุจุดที่เป็นอันตราย (🚨) หรือควรระวัง (⚠️)
+        3. ให้คำแนะนำในการแก้ไขที่ถูกต้องตามกฎหมาย
+        
+        ข้อความที่ต้องวิเคราะห์:
+        "${text}"
+        
+        ตอบกลับเป็นภาษาไทย ในรูปแบบที่อ่านง่าย (ใช้ Bullet points และ Emoji)`;
+
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }]
+            })
+        });
+
+        const data = await response.json();
+        if (data.error) throw new Error(data.error.message);
+
+        const analysisText = data.candidates[0].content.parts[0].text;
+        
+        aiOutput.innerHTML = `
+            <div style="margin-bottom:16px; display:flex; align-items:center; gap:10px;">
+                <span class="type-badge active" style="background:linear-gradient(90deg, #4285f4, #9b51e0); border:none; padding:4px 12px; color:white;">Gemini Deep Analysis</span>
+                <span style="font-size:11px; color:#64748b;">วิเคราะห์โดย AI 1.5 Flash</span>
+            </div>
+            <div class="ai-reasoning" style="padding:20px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); border-radius:16px; color:#cbd5e1; font-size:14px; line-height:1.8;">
+                ${analysisText.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}
+            </div>
+            <button onclick="analyzeWithAI(document.getElementById('dg-text-2').value)" style="margin-top:12px; background:none; border:none; color:#64748b; font-size:12px; text-decoration:underline; cursor:pointer;">ย้อนกลับไปใช้ Rule Engine</button>
+        `;
+        showToast('วิเคราะห์เจาะลึกสำเร็จ', '🚀');
+    } catch (e) {
+        showToast('Gemini API Error: ' + e.message, '❌');
+        aiOutput.innerHTML = originalContent;
+    }
 }
 
 function highlightRiskKeywords(keywords) {
     const rightCol = document.getElementById('dg-diff-right');
+    if (!rightCol) return;
     let content = rightCol.innerHTML;
-    [...new Set(keywords)].forEach(word => {
-        if (!word) return;
-        const regex = new RegExp(word, 'gi');
-        content = content.replace(regex, `<span class="ai-highlight">$&</span>`);
+    const uniqueKeywords = [...new Set(keywords)].filter(k => k && k.length > 0).sort((a, b) => b.length - a.length);
+    uniqueKeywords.forEach(word => {
+        const regex = new RegExp(`(?<!<[^>]*)(${word})`, 'gi');
+        content = content.replace(regex, `<span class="ai-highlight">$1</span>`);
     });
     rightCol.innerHTML = content;
 }
 
-// Learning System Functions
 function toggleLearningModal(show) {
     document.getElementById('learning-modal').style.display = show ? 'flex' : 'none';
     if (show) renderRulesList();
@@ -819,7 +953,6 @@ function deleteRule(index) {
     renderRulesList();
 }
 
-// PDF Support
 async function handleDocPDF(input, targetId) {
     const file = input.files[0];
     if (!file || file.type !== 'application/pdf') { showToast('กรุณาเลือกไฟล์ PDF', '⚠️'); return; }

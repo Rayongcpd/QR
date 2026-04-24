@@ -287,6 +287,20 @@ input:focus, textarea:focus {
     transition: all 0.3s;
 }
 
+.ai-loader-pulse {
+    width: 12px;
+    height: 12px;
+    background: #60a5fa;
+    border-radius: 50%;
+    animation: ai-pulse 1.5s infinite ease-in-out;
+}
+
+@keyframes ai-pulse {
+    0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(96, 165, 250, 0.7); }
+    70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(96, 165, 250, 0); }
+    100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(96, 165, 250, 0); }
+}
+
 .status-badge {
     padding: 8px 18px;
     border-radius: 999px;
@@ -308,7 +322,12 @@ input:focus, textarea:focus {
     background: rgba(15, 23, 42, 0.4);
     border-radius: 12px;
     padding: 16px;
-    border-left: 4px solid var(--blue);
+    border-left: 4px solid #3b82f6;
+}
+
+.ai-reasoning strong {
+    color: #f8fafc;
+    font-weight: 700;
 }
 
 /* ====== AI LEARNING SYSTEM UI ====== */
