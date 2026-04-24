@@ -771,12 +771,20 @@
 
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
                         <div>
-                            <p class="field-label">เอกสารต้นฉบับ (Original)</p>
-                            <textarea id="dg-text-1" class="doc-textarea" placeholder="วางข้อความที่นี่..."></textarea>
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                                <p class="field-label" style="margin-bottom:0;">เอกสารต้นฉบับ (Original)</p>
+                                <button onclick="document.getElementById('dg-pdf-1').click()" class="type-badge" style="padding:4px 10px; font-size:11px;">📄 อัปโหลด PDF</button>
+                                <input type="file" id="dg-pdf-1" hidden accept=".pdf" onchange="handleDocPDF(this, 'dg-text-1')">
+                            </div>
+                            <textarea id="dg-text-1" class="doc-textarea" placeholder="วางข้อความที่นี่ หรืออัปโหลดไฟล์ PDF..."></textarea>
                         </div>
                         <div>
-                            <p class="field-label">เอกสารฉบับแก้ไข (Revised)</p>
-                            <textarea id="dg-text-2" class="doc-textarea" placeholder="วางข้อความที่นี่..."></textarea>
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                                <p class="field-label" style="margin-bottom:0;">เอกสารฉบับแก้ไข (Revised)</p>
+                                <button onclick="document.getElementById('dg-pdf-2').click()" class="type-badge" style="padding:4px 10px; font-size:11px;">📄 อัปโหลด PDF</button>
+                                <input type="file" id="dg-pdf-2" hidden accept=".pdf" onchange="handleDocPDF(this, 'dg-text-2')">
+                            </div>
+                            <textarea id="dg-text-2" class="doc-textarea" placeholder="วางข้อความที่นี่ หรืออัปโหลดไฟล์ PDF..."></textarea>
                         </div>
                     </div>
 

@@ -648,8 +648,20 @@ function handleDocCompare() {
     resultsArea.style.display = 'block';
     resultsArea.scrollIntoView({ behavior: 'smooth' });
 
-    // Diffing Logic using diff-match-patch
-    const dmp = new diff_match_patch();
+    // Diffing Logic with fallback for library name
+    let dmp;
+    try {
+        if (typeof diff_match_patch !== 'undefined') {
+            dmp = new diff_match_patch();
+        } else {
+            throw new Error('diff_match_patch library not loaded');
+        }
+    } catch (e) {
+        console.error(e);
+        showToast('ไม่พบไลบรารีสำหรับการเปรียบเทียบข้อความ', '❌');
+        return;
+    }
+    
     const diffs = dmp.diff_main(t1, t2);
     dmp.diff_cleanupSemantic(diffs);
 
@@ -693,4 +705,39 @@ function analyzeWithAI(text) {
 
         aiOutput.innerHTML = analysis.replace(/\*\*(.*?)\*\*/g, '<strong style="color:#e2e8f0"></strong>');
     }, 2000);
+}
+
+// Handle PDF Upload for Review Section
+async function handleDocPDF(input, targetId) {
+    const file = input.files[0];
+    if (!file) return;
+
+    if (file.type !== 'application/pdf') {
+        showToast('กรุณาเลือกไฟล์ PDF เท่านั้น', '⚠️');
+        return;
+    }
+
+    showToast('กำลังอ่านข้อมูลจาก PDF...', '⏳');
+
+    try {
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        let fullText = "";
+
+        for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const textContent = await page.getTextContent();
+            const pageText = textContent.items.map(item => item.str).join(" ");
+            fullText += pageText + "\n";
+        }
+
+        document.getElementById(targetId).value = fullText.trim();
+        showToast(`อ่านไฟล์ PDF สำเร็จ (${pdf.numPages} หน้า)`, '📄');
+        
+        // Clear input to allow re-upload of same file
+        input.value = '';
+    } catch (err) {
+        console.error(err);
+        showToast('ไม่สามารถอ่านไฟล์ PDF ได้', '❌');
+    }
 }
