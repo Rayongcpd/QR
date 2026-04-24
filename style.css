@@ -218,3 +218,62 @@ input:focus, textarea:focus {
     border-radius: 1.5rem;
     padding: 1.5rem;
 }
+
+/* ====== IMPROVED DIFF VIEW (SPLIT VIEW) ====== */
+.diff-split-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 16px;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.1);
+    margin-top: 12px;
+}
+
+.diff-col {
+    padding: 24px;
+    background: rgba(15, 23, 42, 0.6);
+    font-size: 13px;
+    line-height: 1.8;
+    min-height: 200px;
+}
+
+.diff-header-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    margin-bottom: 2px;
+}
+
+.diff-col-header {
+    padding: 10px 24px;
+    background: rgba(30, 41, 59, 0.8);
+    font-size: 11px;
+    font-weight: 700;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.diff-summary-bar {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 16px;
+    padding: 12px 20px;
+    background: rgba(255,255,255,0.03);
+    border-radius: 12px;
+    font-size: 12px;
+}
+
+.summary-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+@media (max-width: 1024px) {
+    .diff-split-container, .diff-header-row {
+        grid-template-columns: 1fr;
+    }
+}

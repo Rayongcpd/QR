@@ -667,21 +667,35 @@ function handleDocCompare() {
     const diffs = dmp.diff_main(t1, t2);
     dmp.diff_cleanupSemantic(diffs);
 
-    let html = '';
+    let leftHtml = '';
+    let rightHtml = '';
+    let addedCount = 0;
+    let removedCount = 0;
+
     diffs.forEach(part => {
         const type = part[0];
         const text = part[1].replace(/\n/g, '<br>');
         
         if (type === 0) { // Unchanged
-            html += `<span>${text}</span>`;
+            leftHtml += `<span>${text}</span>`;
+            rightHtml += `<span>${text}</span>`;
         } else if (type === -1) { // Deleted
-            html += `<span class="diff-del">${text}</span>`;
+            leftHtml += `<span class="diff-del">${text}</span>`;
+            removedCount += part[1].length;
         } else if (type === 1) { // Added
-            html += `<span class="diff-add">${text}</span>`;
+            rightHtml += `<span class="diff-add">${text}</span>`;
+            addedCount += part[1].length;
         }
     });
 
-    document.getElementById('dg-diff-output').innerHTML = html;
+    document.getElementById('dg-diff-left').innerHTML = leftHtml;
+    document.getElementById('dg-diff-right').innerHTML = rightHtml;
+
+    // Summary Bar
+    document.getElementById('dg-summary-bar').innerHTML = `
+        <div class="summary-item"><span style="color:#ef4444">●</span> ลบออก ${removedCount} ตัวอักษร</div>
+        <div class="summary-item"><span style="color:#10b981">●</span> เพิ่มใหม่ ${addedCount} ตัวอักษร</div>
+    `;
 
     // AI Analysis
     analyzeWithAI(t2);
