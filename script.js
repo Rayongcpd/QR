@@ -634,7 +634,9 @@ function showToast(msg, icon) {
 }
 
 
-// ==================== DOCGUARD AI (DOCUMENT REVIEW) ====================
+// ==================== DOCGUARD AI (DOCUMENT REVIEW & LEARNING) ====================
+
+let customRules = JSON.parse(localStorage.getItem('ai_custom_rules')) || [];
 
 function handleDocCompare() {
     const t1 = document.getElementById('dg-text-1').value.trim();
@@ -649,7 +651,6 @@ function handleDocCompare() {
     resultsArea.style.display = 'block';
     resultsArea.scrollIntoView({ behavior: 'smooth' });
 
-    // Diffing Logic with robust library check
     let dmp;
     try {
         if (typeof diff_match_patch !== 'undefined') {
@@ -657,94 +658,107 @@ function handleDocCompare() {
         } else if (window.diff_match_patch) {
             dmp = new window.diff_match_patch();
         } else {
-            throw new Error('diff_match_patch library not found in global scope');
+            throw new Error('diff_match_patch library not found');
         }
     } catch (e) {
-        console.error('Diff Library Error:', e);
-        showToast('ไม่พบไลบรารีสำหรับการเปรียบเทียบข้อความ (ลองรีเฟรชหน้าจอ)', '❌');
+        showToast('ไม่พบไลบรารีเปรียบเทียบข้อความ', '❌');
         return;
     }
     
     const diffs = dmp.diff_main(t1, t2);
     dmp.diff_cleanupSemantic(diffs);
 
-    let leftHtml = '';
-    let rightHtml = '';
-    let addedCount = 0;
-    let removedCount = 0;
+    let leftHtml = '', rightHtml = '', addedCount = 0, removedCount = 0;
 
     diffs.forEach(part => {
-        const type = part[0];
-        const text = part[1].replace(/\n/g, '<br>');
-        
-        if (type === 0) { // Unchanged
-            leftHtml += `<span>${text}</span>`;
-            rightHtml += `<span>${text}</span>`;
-        } else if (type === -1) { // Deleted
-            leftHtml += `<span class="diff-del">${text}</span>`;
-            removedCount += part[1].length;
-        } else if (type === 1) { // Added
-            rightHtml += `<span class="diff-add">${text}</span>`;
-            addedCount += part[1].length;
+        const type = part[0], text = part[1].replace(/\n/g, '<br>');
+        if (type === 0) { 
+            leftHtml += `<span>${text}</span>`; 
+            rightHtml += `<span>${text}</span>`; 
+        } else if (type === -1) { 
+            leftHtml += `<span class="diff-del">${text}</span>`; 
+            removedCount += part[1].length; 
+        } else if (type === 1) { 
+            rightHtml += `<span class="diff-add">${text}</span>`; 
+            addedCount += part[1].length; 
         }
     });
 
     document.getElementById('dg-diff-left').innerHTML = leftHtml;
     document.getElementById('dg-diff-right').innerHTML = rightHtml;
-
-    // Summary Bar
     document.getElementById('dg-summary-bar').innerHTML = `
-        <div class="summary-item"><span style="color:#ef4444">●</span> ลบออก ${removedCount} ตัวอักษร</div>
-        <div class="summary-item"><span style="color:#10b981">●</span> เพิ่มใหม่ ${addedCount} ตัวอักษร</div>
+        <div class="summary-item"><span style="color:#ef4444">●</span> ลบออก ${removedCount}</div>
+        <div class="summary-item"><span style="color:#10b981">●</span> เพิ่มใหม่ ${addedCount}</div>
     `;
 
-    // AI Analysis
     analyzeWithAI(t2);
 }
 
 function analyzeWithAI(text) {
     const aiOutput = document.getElementById('dg-ai-output');
-    aiOutput.innerHTML = '<div style="display:flex;align-items:center;gap:8px;"><span class="animate-pulse">🤖</span> AI กำลังวิเคราะห์ความเสี่ยงทางกฎหมาย...</div>';
+    aiOutput.innerHTML = '<div style="display:flex;align-items:center;gap:8px;"><span class="animate-pulse">🤖</span> AI นิติกรกำลังวิเคราะห์เชิงลึก...</div>';
 
     setTimeout(() => {
         const lower = text.toLowerCase();
-        let status = 'safe';
-        let title = '✅ ตรวจสอบแล้ว: ไม่พบความเสี่ยง';
-        let analysis = 'ไม่พบคำสำคัญหรือแพทเทิร์นที่บ่งชี้ถึงความเสี่ยงทางกฎหมายที่รุนแรงในเบื้องต้น';
-        let keywords = [];
+        let findings = [];
+        let allKeywords = [];
 
-        // Check for risks with strict warnings about complaints
-        if (lower.includes('พนัน') || lower.includes('อาวุธ') || lower.includes('ยาเสพติด') || lower.includes('กัญชา')) {
-            status = 'danger';
-            title = '🚨 ตรวจพบการกระทำที่เสี่ยงผิดกฎหมายร้ายแรง';
-            analysis = 'พบเนื้อหาที่เกี่ยวข้องกับสินค้าหรือกิจกรรมต้องห้ามตามกฎหมาย **มีความเสี่ยงสูงมากต่อการถูกร้องเรียนและดำเนินคดีอาญา** หากมีการเผยแพร่หรือใช้งานเอกสารชุดนี้ โปรดระงับการดำเนินการทันที';
-            keywords = ['พนัน', 'อาวุธ', 'ยาเสพติด', 'กัญชา'];
-        } else if (lower.includes('ดอกเบี้ย') && (lower.includes('ร้อยละ') || lower.includes('%'))) {
-            status = 'danger';
-            title = '🚨 เสี่ยงต่อการถูกร้องเรียน: ดอกเบี้ยเกินอัตรา';
-            analysis = 'ตรวจพบการกำหนดดอกเบี้ยที่อาจเกินกว่าร้อยละ 15 ต่อปี **สุ่มเสี่ยงต่อการถูกร้องเรียนตาม พ.ร.บ. ห้ามเรียกดอกเบี้ยเกินอัตรา** ซึ่งมีโทษทั้งจำและปรับ และอาจทำให้ข้อตกลงเรื่องดอกเบี้ยเป็นโมฆะทั้งหมด';
-            keywords = ['ดอกเบี้ย', 'ร้อยละ', '%'];
-        } else if (lower.includes('เงินกู้') || lower.includes('ยืมเงิน')) {
-            status = 'warning';
-            title = '⚠️ ความเสี่ยงทางกฎหมาย: ขาดหลักฐานแห่งการกู้ยืม';
-            analysis = 'พบข้อความเกี่ยวกับการกู้ยืมเงิน หากไม่มีหลักฐานเป็นหนังสือที่รัดกุม **จะมีความเสี่ยงสูงที่จะถูกโต้แย้งหรือร้องเรียนในการฟ้องร้องบังคับคดี** โปรดตรวจสอบการลงลายมือชื่อและพยานให้ครบถ้วนตามกฎหมายแพ่ง';
-            keywords = ['เงินกู้', 'ยืมเงิน'];
+        // --- 1. Cooperative Act & Membership ---
+        if (lower.includes('พ้นจากสมาชิกภาพ')) {
+            findings.push({ status: 'warning', title: '🏛️ พ.ร.บ. สหกรณ์: การพ้นสมาชิกภาพ', analysis: 'โปรดตรวจสอบว่าเงื่อนไขการพ้นสมาชิกภาพสอดคล้องกับข้อบังคับมาตรฐานที่นายทะเบียนสหกรณ์กำหนด', keywords: ['พ้นจากสมาชิกภาพ'] });
+        }
+        if (lower.includes('ถือหุ้น')) {
+            findings.push({ status: 'safe', title: '🏛️ พ.ร.บ. สหกรณ์: การถือหุ้น', analysis: 'มีการระบุเรื่องการถือหุ้น โปรดตรวจสอบสัดส่วนการถือหุ้นสูงสุดไม่ให้เกินที่กฎหมายกำหนด', keywords: ['ถือหุ้น'] });
         }
 
-        // 1. Build HTML with Badge
-        aiOutput.innerHTML = `
-            <div class="status-badge status-${status}">
-                <span>${status === 'safe' ? '🛡️' : status === 'warning' ? '⚠️' : '🚨'}</span>
-                ${title}
-            </div>
-            <div class="ai-reasoning text-slate-300">
-                ${analysis.replace(/\\*\\*(.*?)\\*\\*/g, '<strong style="color:#e2e8f0"></strong>')}
-            </div>
-        `;
+        // --- 2. PDPA (Privacy) ---
+        if (!lower.includes('ยินยอม') && !lower.includes('consent') && (lower.includes('ข้อมูล') || lower.includes('เก็บรักษา'))) {
+            findings.push({ status: 'danger', title: '🚨 ความเสี่ยง PDPA: ขาดข้อความยินยอม', analysis: 'ไม่พบข้อความขอความยินยอม (Consent Clause) ในการเก็บรวบรวมข้อมูลส่วนบุคคล **มีความเสี่ยงสูงต่อการถูกร้องเรียนและโทษปรับทางปกครอง**', keywords: ['ข้อมูล'] });
+        }
 
-        // 2. Perform Highlighting in the Diff View
-        if (keywords.length > 0) {
-            highlightRiskKeywords(keywords);
+        // --- 3. Guarantee Law (ค้ำประกัน) ---
+        if (lower.includes('ค้ำประกัน') && lower.includes('ลูกหนี้ร่วม')) {
+            findings.push({ status: 'danger', title: '🚨 ผิดกฎหมายค้ำประกัน: ลูกหนี้ร่วม', analysis: 'ตามกฎหมายใหม่ **ผู้ค้ำประกันห้ามรับผิดอย่างลูกหนี้ร่วม** ข้อตกลงนี้จะตกเป็นโมฆะและสหกรณ์อาจเสียสิทธิในการบังคับคดี', keywords: ['ลูกหนี้ร่วม', 'ค้ำประกัน'] });
+        }
+
+        // --- 4. Interest & Loan ---
+        const intMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:%|ร้อยละ|เปอร์เซ็นต์)/i);
+        if (lower.includes('ดอกเบี้ย') && intMatch) {
+            const rate = parseFloat(intMatch[1]);
+            if (rate > 15) {
+                findings.push({ status: 'danger', title: '🚨 ดอกเบี้ยเกินอัตรา (ร้อยละ ' + rate + ')', analysis: 'เกินกว่าที่กฎหมายกำหนด (15% ต่อปี) **เสี่ยงต่อการถูกร้องเรียนและสัญญาเป็นโมฆะ**', keywords: ['ดอกเบี้ย', intMatch[1]] });
+            } else {
+                findings.push({ status: 'safe', title: '✅ ดอกเบี้ยถูกกฎหมาย (ร้อยละ ' + rate + ')', analysis: 'สอดคล้องกับกฎหมายแพ่งและพาณิชย์', keywords: [] });
+            }
+        }
+
+        // --- 5. Labor Law ---
+        if (lower.includes('ลากิจ')) {
+            const match = text.match(/(\d+)\s*(?:วัน)/);
+            if (match && parseInt(match[1]) < 3) {
+                findings.push({ status: 'danger', title: '🚨 ผิดกฎหมายแรงงาน: ลากิจ', analysis: 'สิทธิลากิจต้องไม่น้อยกว่า 3 วันทำงาน/ปี โดยได้รับค่าจ้าง', keywords: ['ลากิจ', match[1]] });
+            }
+        }
+
+        // --- 6. SELF-LEARNING RULES (Custom Rules) ---
+        customRules.forEach(rule => {
+            if (lower.includes(rule.keyword.toLowerCase())) {
+                findings.push({ status: rule.status, title: '🧠 กฎที่เรียนรู้ใหม่: ' + rule.keyword, analysis: rule.reason, keywords: [rule.keyword] });
+            }
+        });
+
+        // Rendering
+        if (findings.length === 0) {
+            aiOutput.innerHTML = '<div class="status-badge status-safe">🛡️ ไม่พบความเสี่ยงร้ายแรง</div><div class="ai-reasoning">วิเคราะห์เบื้องต้นไม่พบจุดขัดกฎหมายหลัก</div>';
+        } else {
+            let html = '';
+            findings.forEach(f => {
+                html += `<div class="status-badge status-${f.status}" style="margin-bottom:8px;"><span>${f.status === 'safe' ? '🛡️' : f.status === 'warning' ? '⚠️' : '🚨'}</span> ${f.title}</div>
+                         <div class="ai-reasoning text-slate-300" style="margin-bottom:16px;">${f.analysis.replace(/\\*\\*(.*?)\\*\\*/g, '<strong style="color:#e2e8f0"></strong>')}</div>`;
+                allKeywords = [...allKeywords, ...f.keywords];
+            });
+            aiOutput.innerHTML = html;
+            if (allKeywords.length > 0) highlightRiskKeywords(allKeywords);
         }
     }, 1500);
 }
@@ -752,47 +766,65 @@ function analyzeWithAI(text) {
 function highlightRiskKeywords(keywords) {
     const rightCol = document.getElementById('dg-diff-right');
     let content = rightCol.innerHTML;
-
-    keywords.forEach(word => {
+    [...new Set(keywords)].forEach(word => {
+        if (!word) return;
         const regex = new RegExp(word, 'gi');
         content = content.replace(regex, `<span class="ai-highlight">$&</span>`);
     });
-
     rightCol.innerHTML = content;
-    showToast('AI ตรวจพบจุดที่ต้องระวังและไฮไลท์ให้แล้ว', '✨');
 }
 
-// Handle PDF Upload for Review Section
+// Learning System Functions
+function toggleLearningModal(show) {
+    document.getElementById('learning-modal').style.display = show ? 'flex' : 'none';
+    if (show) renderRulesList();
+}
+
+function saveNewRule() {
+    const kw = document.getElementById('learn-keyword').value.trim();
+    const st = document.getElementById('learn-status').value;
+    const rs = document.getElementById('learn-reason').value.trim();
+    if (!kw || !rs) { showToast('กรุณากรอกข้อมูลให้ครบ', '⚠️'); return; }
+    customRules.push({ keyword: kw, status: st, reason: rs });
+    localStorage.setItem('ai_custom_rules', JSON.stringify(customRules));
+    showToast('บันทึกกฎการเรียนรู้ใหม่สำเร็จ', '💾');
+    document.getElementById('learn-keyword').value = '';
+    document.getElementById('learn-reason').value = '';
+    renderRulesList();
+}
+
+function renderRulesList() {
+    const list = document.getElementById('custom-rules-list');
+    list.innerHTML = customRules.length === 0 ? '<p style="text-align:center;color:#475569;font-size:12px;">ยังไม่มีกฎที่สอนไว้</p>' : '';
+    customRules.forEach((rule, index) => {
+        list.innerHTML += `<div class="rule-card">
+            <div><span class="status-badge status-${rule.status}" style="padding:2px 8px;font-size:10px;">${rule.keyword}</span></div>
+            <button onclick="deleteRule(${index})" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:12px;">ลบ</button>
+        </div>`;
+    });
+}
+
+function deleteRule(index) {
+    customRules.splice(index, 1);
+    localStorage.setItem('ai_custom_rules', JSON.stringify(customRules));
+    renderRulesList();
+}
+
+// PDF Support
 async function handleDocPDF(input, targetId) {
     const file = input.files[0];
-    if (!file) return;
-
-    if (file.type !== 'application/pdf') {
-        showToast('กรุณาเลือกไฟล์ PDF เท่านั้น', '⚠️');
-        return;
-    }
-
-    showToast('กำลังอ่านข้อมูลจาก PDF...', '⏳');
-
+    if (!file || file.type !== 'application/pdf') { showToast('กรุณาเลือกไฟล์ PDF', '⚠️'); return; }
+    showToast('กำลังอ่าน PDF...', '⏳');
     try {
         const arrayBuffer = await file.arrayBuffer();
         const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-        let fullText = "";
-
+        let text = "";
         for (let i = 1; i <= pdf.numPages; i++) {
             const page = await pdf.getPage(i);
-            const textContent = await page.getTextContent();
-            const pageText = textContent.items.map(item => item.str).join(" ");
-            fullText += pageText + "\n";
+            const content = await page.getTextContent();
+            text += content.items.map(it => it.str).join(" ") + "\n";
         }
-
-        document.getElementById(targetId).value = fullText.trim();
-        showToast(`อ่านไฟล์ PDF สำเร็จ (${pdf.numPages} หน้า)`, '📄');
-        
-        // Clear input to allow re-upload of same file
-        input.value = '';
-    } catch (err) {
-        console.error(err);
-        showToast('ไม่สามารถอ่านไฟล์ PDF ได้', '❌');
-    }
+        document.getElementById(targetId).value = text.trim();
+        showToast('อ่าน PDF สำเร็จ', '📄');
+    } catch (e) { showToast('อ่าน PDF ล้มเหลว', '❌'); }
 }
