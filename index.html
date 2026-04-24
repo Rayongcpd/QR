@@ -946,7 +946,8 @@
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/diff-match-patch@1.0.5/dist/diff_match_patch.js"></script>
+    <script>if (typeof module === 'undefined') var module = { exports: {} };</script>
+    <script src="https://cdn.jsdelivr.net/gh/google/diff-match-patch@master/javascript/diff_match_patch.js"></script>
     <script src="script.js"></script>
     <script>
         // ==================== UI OVERRIDES & PATCHES ====================
