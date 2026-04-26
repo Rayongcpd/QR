@@ -49,6 +49,13 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     updateGeminiUI();
+
+    // OCR Gemini Key Init — sync with existing key
+    const ocrKeyInput = document.getElementById('ocr-gemini-key');
+    if (ocrKeyInput) {
+        ocrKeyInput.value = localStorage.getItem('gemini_api_key') || '';
+    }
+    updateOCRModeLabel();
 });
 
 // ==================== CORE FUNCTIONS ====================
@@ -1283,3 +1290,67 @@ function updateOCRProgress(percent, text) {
     if (txt) txt.textContent = text;
 }
 
+// ==================== OCR API KEY MANAGEMENT ====================
+
+/**
+ * Handle OCR Gemini API key input — sync to localStorage and update both UIs
+ * @param {string} value - API key value
+ */
+function handleOCRKeyInput(value) {
+    localStorage.setItem('gemini_api_key', value);
+
+    // Sync with the other Gemini input (in AI Analysis section)
+    const otherInput = document.getElementById('gemini-api-key');
+    if (otherInput) otherInput.value = value;
+
+    updateGeminiUI();
+    updateOCRModeLabel();
+
+    // Show status feedback
+    const statusEl = document.getElementById('ocr-key-status');
+    if (statusEl) {
+        if (value.trim()) {
+            statusEl.style.display = 'block';
+            statusEl.style.background = 'rgba(16,185,129,0.1)';
+            statusEl.style.color = '#10b981';
+            statusEl.textContent = '✅ Gemini Vision OCR พร้อมใช้งาน — อัปโหลด PDF สแกนได้เลย';
+        } else {
+            statusEl.style.display = 'block';
+            statusEl.style.background = 'rgba(234,179,8,0.1)';
+            statusEl.style.color = '#eab308';
+            statusEl.textContent = '⚠️ ไม่มี API Key — จะใช้ Tesseract OCR (ความแม่นยำต่ำกว่า)';
+            setTimeout(() => { statusEl.style.display = 'none'; }, 3000);
+        }
+    }
+}
+
+/**
+ * Toggle OCR API key visibility (password/text)
+ */
+function toggleOCRKeyVisibility() {
+    const input = document.getElementById('ocr-gemini-key');
+    const btn = document.getElementById('ocr-key-toggle');
+    if (!input) return;
+    if (input.type === 'password') {
+        input.type = 'text';
+        if (btn) btn.textContent = '🙈';
+    } else {
+        input.type = 'password';
+        if (btn) btn.textContent = '👁️';
+    }
+}
+
+/**
+ * Update OCR mode label based on whether Gemini API key exists
+ */
+function updateOCRModeLabel() {
+    const label = document.getElementById('ocr-mode-label');
+    const key = localStorage.getItem('gemini_api_key');
+    if (label) {
+        if (key && key.trim()) {
+            label.innerHTML = 'โหมด: <strong style="color:#a855f7;">Gemini Vision AI</strong> (แม่นยำสูง)';
+        } else {
+            label.innerHTML = 'โหมด: <span style="color:#eab308;">Tesseract</span> (พื้นฐาน) — ใส่ API Key เพื่ออัปเกรด';
+        }
+    }
+}
