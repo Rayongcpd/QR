@@ -1001,19 +1001,19 @@ async function handleDocPDF(input, targetId) {
                 let ocrResult = '';
 
                 if (geminiKey) {
-                    ocrResult = await ocrSinglePageGemini(page, geminiKey, i, pdf.numPages);
-                } else {
-                    // Tesseract fallback — lazy init worker
-                    if (!tesseractWorker) {
-                        updateOCRProgress(0, 'กำลังโหลด Tesseract OCR Engine...');
-                        tesseractWorker = await Tesseract.createWorker('tha+eng', 1, {
-                            logger: (m) => {
-                                if (m.status === 'recognizing text') {
-                                    updateOCRProgress(Math.round(m.progress * 100), 'กำลังอ่านข้อความ...');
-                                }
-                            }
-                        });
+                    try {
+                        ocrResult = await ocrSinglePageGemini(page, geminiKey, i, pdf.numPages);
+                        if (!ocrResult || !isMeaningfulText(ocrResult)) {
+                            throw new Error('Gemini output empty or poor quality');
+                        }
+                    } catch (gemErr) {
+                        console.warn(`Gemini OCR failed on page ${i}, falling back to Tesseract:`, gemErr);
+                        // Fallback to Tesseract inside the same page loop
+                        tesseractWorker = await initTesseractWorker(tesseractWorker);
+                        ocrResult = await ocrSinglePageTesseract(page, tesseractWorker, i, pdf.numPages);
                     }
+                } else {
+                    tesseractWorker = await initTesseractWorker(tesseractWorker);
                     ocrResult = await ocrSinglePageTesseract(page, tesseractWorker, i, pdf.numPages);
                 }
 
@@ -1104,23 +1104,45 @@ function extractTextFromPage(content) {
 }
 
 /**
+ * Lazy initializer for Tesseract worker
+ */
+async function initTesseractWorker(existingWorker) {
+    if (existingWorker) return existingWorker;
+    updateOCRProgress(0, 'กำลังโหลด Tesseract OCR Engine...');
+    return await Tesseract.createWorker('tha+eng', 1, {
+        logger: (m) => {
+            if (m.status === 'recognizing text') {
+                updateOCRProgress(Math.round(m.progress * 100), 'กำลังอ่านข้อความ...');
+            }
+        }
+    });
+}
+
+/**
  * Check if extracted text is meaningful (real content, not just symbols)
  * Returns false if text is empty, or mostly symbols like *, -, _, etc.
  * @param {string} text - extracted text
  * @returns {boolean} true if text contains real readable content
  */
 function isMeaningfulText(text) {
-    if (!text || text.trim().length === 0) return false;
+    if (!text || text.trim().length < 5) return false;
 
     const cleaned = text.replace(/\s+/g, '');
-    if (cleaned.length === 0) return false;
+    if (cleaned.length < 5) return false;
 
     // Count real characters: Thai (0E00-0E7F), English (A-Za-z), digits (0-9)
     const realChars = cleaned.replace(/[^ก-๙a-zA-Z0-9]/g, '');
 
-    // If less than 15% of characters are real text → not meaningful
+    // Check ratio of meaningful characters
     const ratio = realChars.length / cleaned.length;
-    return ratio >= 0.15;
+
+    // Reject if too many repeated symbols like * or - (often used in separators or scanned artifacts)
+    const hasTooManyStars = (cleaned.match(/\*/g) || []).length / cleaned.length > 0.4;
+    
+    // If less than 20% of characters are real text OR too many stars → not meaningful
+    if (ratio < 0.20 || hasTooManyStars) return false;
+
+    return true;
 }
 
 /**
@@ -1148,20 +1170,22 @@ async function ocrSinglePageGemini(page, apiKey, pageNum, totalPages) {
                 contents: [{
                     parts: [
                         { inlineData: { mimeType: 'image/jpeg', data: base64Data } },
-                        { text: 'อ่านข้อความทั้งหมดในภาพนี้ให้ครบถ้วนตามลำดับ ส่งกลับเป็น plain text เท่านั้น ไม่ต้องเพิ่มคำอธิบายหรือ formatting ใดๆ รักษา layout และการจัดย่อหน้าตามต้นฉบับ' }
+                        { text: 'อ่านข้อความภาษาไทยและอังกฤษทั้งหมดในภาพนี้ให้ครบถ้วน ห้ามสรุป ห้ามข้ามคำ ส่งกลับเป็น plain text เท่านั้น โดยรักษาการขึ้นบรรทัดใหม่และย่อหน้าให้ตรงตามต้นฉบับมากที่สุด' }
                     ]
                 }],
-                generationConfig: { temperature: 0, maxOutputTokens: 8192 }
+                generationConfig: { temperature: 0.1, maxOutputTokens: 8192 }
             })
         });
 
         const data = await response.json();
-        if (data.error) throw new Error(data.error.message);
+        if (data.error) throw new Error(`Gemini API Error: ${data.error.message}`);
 
-        return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
+        const result = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
+        if (!result) throw new Error('Gemini returned empty text');
+
+        return result;
     } catch (e) {
-        console.error(`Gemini OCR failed on page ${pageNum}:`, e);
-        return '';
+        throw e; // Let the handler decide whether to fallback
     }
 }
 
@@ -1181,6 +1205,19 @@ async function ocrSinglePageTesseract(page, worker, pageNum, totalPages) {
         );
 
         const rawImage = await renderPageToImage(page, 400);
+
+        // Check if image is too small for Tesseract
+        const tempImg = new Image();
+        const imgSizeOk = await new Promise(res => {
+            tempImg.onload = () => res(tempImg.width > 10 && tempImg.height > 10);
+            tempImg.src = rawImage;
+        });
+
+        if (!imgSizeOk) {
+            console.warn(`Page ${pageNum} image too small for Tesseract, skipping.`);
+            return '';
+        }
+
         const processedImage = await preprocessForOCR(rawImage);
         const { data: { text } } = await worker.recognize(processedImage);
 
