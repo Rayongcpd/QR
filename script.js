@@ -1187,10 +1187,15 @@ async function ocrSinglePageGemini(page, apiKey, pageNum, totalPages) {
             `หน้า ${pageNum}/${totalPages}: Gemini Vision OCR...`
         );
 
+        // Add a small delay between pages to avoid Rate Limit (429) on free tier
+        if (pageNum > 1) {
+            await new Promise(res => setTimeout(res, 3000)); 
+        }
+
         const base64Url = await renderPageToImage(page, 300);
         const base64Data = base64Url.split(',')[1];
 
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
