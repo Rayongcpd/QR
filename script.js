@@ -979,7 +979,6 @@ async function handleDocPDF(input, targetId) {
                 const y = item.transform ? item.transform[5] : null;
 
                 if (lastY !== null && y !== null && Math.abs(lastY - y) > 2) {
-                    // Y changed → new line
                     allText += line.trim() + '\n';
                     line = '';
                 }
@@ -995,12 +994,10 @@ async function handleDocPDF(input, targetId) {
                 }
             });
 
-            // Flush remaining line
             if (line.trim()) {
                 allText += line.trim() + '\n';
             }
 
-            // Separator between pages
             if (i < pdf.numPages) {
                 allText += '\n';
             }
@@ -1010,9 +1007,18 @@ async function handleDocPDF(input, targetId) {
         const textarea = document.getElementById(targetId);
 
         if (!finalText) {
-            textarea.value = '';
-            textarea.placeholder = '⚠️ PDF นี้เป็นไฟล์ภาพ (Scanned) — ไม่สามารถอ่านข้อความได้\nกรุณาวางข้อความด้วยตนเอง หรือใช้ไฟล์ PDF ที่มี text layer';
-            showToast('PDF นี้เป็นไฟล์ภาพ (Scanned) — ไม่พบข้อความ', '⚠️');
+            // No text layer found → auto-run OCR
+            showToast('ไม่พบ text layer — เริ่ม OCR อัตโนมัติ...', '🔍');
+            const ocrText = await runOCROnPDF(pdf);
+            if (ocrText) {
+                textarea.value = ocrText;
+                const lineCount = ocrText.split('\n').filter(l => l.trim()).length;
+                showToast(`OCR สำเร็จ (${pdf.numPages} หน้า, ${lineCount} บรรทัด)`, '✅');
+            } else {
+                textarea.value = '';
+                textarea.placeholder = '⚠️ ไม่สามารถอ่านข้อความได้แม้ใช้ OCR — กรุณาวางข้อความด้วยตนเอง';
+                showToast('OCR ไม่พบข้อความในไฟล์นี้', '⚠️');
+            }
         } else {
             textarea.value = finalText;
             const lineCount = finalText.split('\n').filter(l => l.trim()).length;
@@ -1023,3 +1029,88 @@ async function handleDocPDF(input, targetId) {
         showToast('อ่าน PDF ล้มเหลว: ' + (e.message || 'ไม่ทราบสาเหตุ'), '❌');
     }
 }
+
+/**
+ * Render each PDF page to canvas and run Tesseract OCR
+ * @param {Object} pdf - pdf.js document object
+ * @returns {Promise<string>} extracted text
+ */
+async function runOCROnPDF(pdf) {
+    const progressContainer = document.getElementById('ocr-progress-container');
+    const progressBar = document.getElementById('ocr-progress-bar');
+    const progressVal = document.getElementById('ocr-progress-val');
+    const progressText = document.getElementById('ocr-progress-text');
+
+    // Show progress UI
+    if (progressContainer) progressContainer.style.display = 'block';
+    updateOCRProgress(0, 'กำลังโหลด OCR Engine (ครั้งแรกอาจใช้เวลาสักครู่)...');
+
+    try {
+        // Create Tesseract worker with Thai + English
+        const worker = await Tesseract.createWorker('tha+eng', 1, {
+            logger: (m) => {
+                if (m.status === 'recognizing text') {
+                    // Per-page progress within current page
+                    const pageProgress = Math.round(m.progress * 100);
+                    updateOCRProgress(pageProgress, `กำลังอ่านข้อความ...`);
+                }
+            }
+        });
+
+        let allOcrText = '';
+
+        for (let i = 1; i <= pdf.numPages; i++) {
+            const basePercent = Math.round(((i - 1) / pdf.numPages) * 100);
+            updateOCRProgress(basePercent, `กำลัง OCR หน้าที่ ${i} จาก ${pdf.numPages}...`);
+
+            // Render page to canvas at 300 DPI for best OCR quality
+            const page = await pdf.getPage(i);
+            const scale = 300 / 72; // 300 DPI
+            const viewport = page.getViewport({ scale });
+
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = viewport.width;
+            canvas.height = viewport.height;
+
+            await page.render({ canvasContext: ctx, viewport }).promise;
+
+            // Run OCR on canvas
+            const { data: { text } } = await worker.recognize(canvas);
+
+            if (text && text.trim()) {
+                allOcrText += text.trim() + '\n';
+                if (i < pdf.numPages) allOcrText += '\n';
+            }
+        }
+
+        await worker.terminate();
+
+        updateOCRProgress(100, 'OCR เสร็จสมบูรณ์! ✅');
+        setTimeout(() => {
+            if (progressContainer) progressContainer.style.display = 'none';
+        }, 2000);
+
+        return allOcrText.trim() || null;
+    } catch (e) {
+        console.error('OCR error:', e);
+        showToast('OCR ล้มเหลว: ' + (e.message || 'ไม่ทราบสาเหตุ'), '❌');
+        if (progressContainer) progressContainer.style.display = 'none';
+        return null;
+    }
+}
+
+/**
+ * Update OCR progress bar UI
+ * @param {number} percent - 0-100
+ * @param {string} text - status message
+ */
+function updateOCRProgress(percent, text) {
+    const bar = document.getElementById('ocr-progress-bar');
+    const val = document.getElementById('ocr-progress-val');
+    const txt = document.getElementById('ocr-progress-text');
+    if (bar) bar.style.width = percent + '%';
+    if (val) val.textContent = percent + '%';
+    if (txt) txt.textContent = text;
+}
+

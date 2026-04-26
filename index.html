@@ -15,6 +15,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <link rel="stylesheet" href="style.css">
     <style>
         :root {
@@ -784,6 +785,26 @@
                                 <input type="file" id="dg-pdf-2" hidden accept=".pdf" onchange="handleDocPDF(this, 'dg-text-2')">
                             </div>
                             <textarea id="dg-text-2" class="doc-textarea" placeholder="วางข้อความที่นี่ หรืออัปโหลดไฟล์ PDF..."></textarea>
+                        </div>
+                    </div>
+
+                    <!-- OCR Progress Bar -->
+                    <div id="ocr-progress-container" style="display:none; margin-bottom:24px;">
+                        <div style="background:rgba(2,6,23,0.5); border:1px solid rgba(168,85,247,0.2); border-radius:16px; padding:20px;">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                                <div style="display:flex; align-items:center; gap:10px;">
+                                    <div class="ai-loader-pulse"></div>
+                                    <div>
+                                        <span style="font-size:10px; font-weight:700; color:#a855f7; text-transform:uppercase; letter-spacing:0.1em;">OCR Processing</span>
+                                        <p id="ocr-progress-text" style="font-size:13px; font-weight:600; margin-top:2px; color:#e2e8f0;">กำลังเตรียม OCR Engine...</p>
+                                    </div>
+                                </div>
+                                <span id="ocr-progress-val" style="font-family:'Outfit',sans-serif; font-size:22px; font-weight:800; color:#a855f7;">0%</span>
+                            </div>
+                            <div style="height:6px; background:#0f172a; border-radius:999px; overflow:hidden;">
+                                <div id="ocr-progress-bar" style="height:100%; width:0%; background:linear-gradient(90deg,#7c3aed,#a855f7); border-radius:999px; transition:width 0.3s ease;"></div>
+                            </div>
+                            <p style="font-size:11px; color:#475569; margin-top:10px;">🔍 ระบบกำลังอ่านข้อความจากภาพด้วย AI OCR (รองรับ ไทย + อังกฤษ)</p>
                         </div>
                     </div>
 
