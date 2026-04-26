@@ -964,90 +964,230 @@ async function handleDocPDF(input, targetId) {
     const file = input.files[0];
     if (!file || file.type !== 'application/pdf') { showToast('กรุณาเลือกไฟล์ PDF', '⚠️'); return; }
     showToast('กำลังอ่าน PDF...', '⏳');
+
+    const geminiKey = localStorage.getItem('gemini_api_key');
+    const progressContainer = document.getElementById('ocr-progress-container');
+
     try {
         const arrayBuffer = await file.arrayBuffer();
         const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
         let allText = '';
+        let ocrPageCount = 0;
+        let textPageCount = 0;
+
+        // Prepare OCR worker only if needed (lazy init)
+        let tesseractWorker = null;
 
         for (let i = 1; i <= pdf.numPages; i++) {
             const page = await pdf.getPage(i);
-            const content = await page.getTextContent();
 
-            if (!content.items || content.items.length === 0) continue;
+            // Step 1: Try text layer extraction
+            let pageText = extractTextFromPage(await page.getTextContent());
 
-            let lastY = null;
-            let line = '';
+            // Step 2: Check if text is meaningful
+            if (isMeaningfulText(pageText)) {
+                // Good text layer — use it
+                allText += pageText + '\n';
+                textPageCount++;
+            } else {
+                // Bad or no text layer — run OCR on this page
+                ocrPageCount++;
+                if (progressContainer) progressContainer.style.display = 'block';
+                updateOCRProgress(
+                    Math.round(((i - 1) / pdf.numPages) * 100),
+                    `หน้า ${i}/${pdf.numPages}: ไม่พบข้อความ — กำลัง OCR...`
+                );
 
-            content.items.forEach(item => {
-                const str = item.str;
-                if (str === '' && !item.hasEOL) return;
+                let ocrResult = '';
 
-                const y = item.transform ? item.transform[5] : null;
-
-                if (lastY !== null && y !== null && Math.abs(lastY - y) > 2) {
-                    allText += line.trim() + '\n';
-                    line = '';
-                }
-
-                line += str;
-
-                if (item.hasEOL) {
-                    allText += line.trim() + '\n';
-                    line = '';
-                    lastY = null;
+                if (geminiKey) {
+                    ocrResult = await ocrSinglePageGemini(page, geminiKey, i, pdf.numPages);
                 } else {
-                    lastY = y;
+                    // Tesseract fallback — lazy init worker
+                    if (!tesseractWorker) {
+                        updateOCRProgress(0, 'กำลังโหลด Tesseract OCR Engine...');
+                        tesseractWorker = await Tesseract.createWorker('tha+eng', 1, {
+                            logger: (m) => {
+                                if (m.status === 'recognizing text') {
+                                    updateOCRProgress(Math.round(m.progress * 100), 'กำลังอ่านข้อความ...');
+                                }
+                            }
+                        });
+                    }
+                    ocrResult = await ocrSinglePageTesseract(page, tesseractWorker, i, pdf.numPages);
                 }
-            });
 
-            if (line.trim()) {
-                allText += line.trim() + '\n';
+                if (ocrResult) {
+                    allText += ocrResult + '\n';
+                }
             }
 
+            // Page separator
             if (i < pdf.numPages) {
                 allText += '\n';
             }
         }
 
+        // Cleanup Tesseract worker
+        if (tesseractWorker) {
+            await tesseractWorker.terminate();
+        }
+
+        // Hide progress
+        if (progressContainer) {
+            updateOCRProgress(100, 'เสร็จสมบูรณ์! ✅');
+            setTimeout(() => { progressContainer.style.display = 'none'; }, 1500);
+        }
+
+        // Set result
         const finalText = allText.trim();
         const textarea = document.getElementById(targetId);
 
         if (!finalText) {
-            // No text layer → auto-run OCR
-            const geminiKey = localStorage.getItem('gemini_api_key');
-            if (geminiKey) {
-                showToast('ไม่พบ text layer — เริ่ม Gemini Vision OCR...', '🔍');
-                const ocrText = await runGeminiOCR(pdf, geminiKey);
-                if (ocrText) {
-                    textarea.value = ocrText;
-                    const lineCount = ocrText.split('\n').filter(l => l.trim()).length;
-                    showToast(`Gemini OCR สำเร็จ (${pdf.numPages} หน้า, ${lineCount} บรรทัด)`, '✅');
-                } else {
-                    textarea.value = '';
-                    textarea.placeholder = '⚠️ ไม่สามารถอ่านข้อความได้ — กรุณาวางข้อความด้วยตนเอง';
-                    showToast('OCR ไม่พบข้อความในไฟล์นี้', '⚠️');
-                }
-            } else {
-                showToast('ไม่พบ text layer — เริ่ม Tesseract OCR...', '🔍');
-                const ocrText = await runTesseractOCR(pdf);
-                if (ocrText) {
-                    textarea.value = ocrText;
-                    const lineCount = ocrText.split('\n').filter(l => l.trim()).length;
-                    showToast(`OCR สำเร็จ (${pdf.numPages} หน้า, ${lineCount} บรรทัด)`, '✅');
-                } else {
-                    textarea.value = '';
-                    textarea.placeholder = '⚠️ ไม่สามารถอ่านข้อความได้ — ลองตั้งค่า Gemini API Key เพื่อ OCR ที่แม่นยำกว่า';
-                    showToast('OCR ไม่พบข้อความ — ลองใช้ Gemini API Key', '⚠️');
-                }
-            }
+            textarea.value = '';
+            textarea.placeholder = '⚠️ ไม่สามารถอ่านข้อความได้ — กรุณาวางข้อความด้วยตนเอง';
+            showToast('ไม่พบข้อความในไฟล์นี้', '⚠️');
         } else {
             textarea.value = finalText;
             const lineCount = finalText.split('\n').filter(l => l.trim()).length;
-            showToast(`อ่าน PDF สำเร็จ (${pdf.numPages} หน้า, ${lineCount} บรรทัด)`, '📄');
+            const method = ocrPageCount > 0
+                ? `Text: ${textPageCount} หน้า, OCR: ${ocrPageCount} หน้า`
+                : `${pdf.numPages} หน้า`;
+            showToast(`อ่าน PDF สำเร็จ (${method}, ${lineCount} บรรทัด)`, '📄');
         }
     } catch (e) {
         console.error('PDF read error:', e);
+        if (progressContainer) progressContainer.style.display = 'none';
         showToast('อ่าน PDF ล้มเหลว: ' + (e.message || 'ไม่ทราบสาเหตุ'), '❌');
+    }
+}
+
+/**
+ * Extract text from a page's textContent using Y-coordinate line reconstruction
+ * @param {Object} content - pdf.js textContent object
+ * @returns {string} extracted text
+ */
+function extractTextFromPage(content) {
+    if (!content.items || content.items.length === 0) return '';
+
+    let text = '';
+    let lastY = null;
+    let line = '';
+
+    content.items.forEach(item => {
+        const str = item.str;
+        if (str === '' && !item.hasEOL) return;
+
+        const y = item.transform ? item.transform[5] : null;
+
+        if (lastY !== null && y !== null && Math.abs(lastY - y) > 2) {
+            text += line.trim() + '\n';
+            line = '';
+        }
+
+        line += str;
+
+        if (item.hasEOL) {
+            text += line.trim() + '\n';
+            line = '';
+            lastY = null;
+        } else {
+            lastY = y;
+        }
+    });
+
+    if (line.trim()) {
+        text += line.trim() + '\n';
+    }
+
+    return text.trim();
+}
+
+/**
+ * Check if extracted text is meaningful (real content, not just symbols)
+ * Returns false if text is empty, or mostly symbols like *, -, _, etc.
+ * @param {string} text - extracted text
+ * @returns {boolean} true if text contains real readable content
+ */
+function isMeaningfulText(text) {
+    if (!text || text.trim().length === 0) return false;
+
+    const cleaned = text.replace(/\s+/g, '');
+    if (cleaned.length === 0) return false;
+
+    // Count real characters: Thai (0E00-0E7F), English (A-Za-z), digits (0-9)
+    const realChars = cleaned.replace(/[^ก-๙a-zA-Z0-9]/g, '');
+
+    // If less than 15% of characters are real text → not meaningful
+    const ratio = realChars.length / cleaned.length;
+    return ratio >= 0.15;
+}
+
+/**
+ * OCR a single PDF page using Gemini Vision API
+ * @param {Object} page - pdf.js page object
+ * @param {string} apiKey - Gemini API key
+ * @param {number} pageNum - current page number
+ * @param {number} totalPages - total pages
+ * @returns {Promise<string>} OCR text result
+ */
+async function ocrSinglePageGemini(page, apiKey, pageNum, totalPages) {
+    try {
+        updateOCRProgress(
+            Math.round(((pageNum - 1) / totalPages) * 100),
+            `หน้า ${pageNum}/${totalPages}: Gemini Vision OCR...`
+        );
+
+        const base64Url = await renderPageToImage(page, 300);
+        const base64Data = base64Url.split(',')[1];
+
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{
+                    parts: [
+                        { inlineData: { mimeType: 'image/jpeg', data: base64Data } },
+                        { text: 'อ่านข้อความทั้งหมดในภาพนี้ให้ครบถ้วนตามลำดับ ส่งกลับเป็น plain text เท่านั้น ไม่ต้องเพิ่มคำอธิบายหรือ formatting ใดๆ รักษา layout และการจัดย่อหน้าตามต้นฉบับ' }
+                    ]
+                }],
+                generationConfig: { temperature: 0, maxOutputTokens: 8192 }
+            })
+        });
+
+        const data = await response.json();
+        if (data.error) throw new Error(data.error.message);
+
+        return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
+    } catch (e) {
+        console.error(`Gemini OCR failed on page ${pageNum}:`, e);
+        return '';
+    }
+}
+
+/**
+ * OCR a single PDF page using Tesseract.js (with preprocessing)
+ * @param {Object} page - pdf.js page object
+ * @param {Object} worker - Tesseract worker instance
+ * @param {number} pageNum - current page number
+ * @param {number} totalPages - total pages
+ * @returns {Promise<string>} OCR text result
+ */
+async function ocrSinglePageTesseract(page, worker, pageNum, totalPages) {
+    try {
+        updateOCRProgress(
+            Math.round(((pageNum - 1) / totalPages) * 100),
+            `หน้า ${pageNum}/${totalPages}: Tesseract OCR...`
+        );
+
+        const rawImage = await renderPageToImage(page, 400);
+        const processedImage = await preprocessForOCR(rawImage);
+        const { data: { text } } = await worker.recognize(processedImage);
+
+        return text?.trim() || '';
+    } catch (e) {
+        console.error(`Tesseract OCR failed on page ${pageNum}:`, e);
+        return '';
     }
 }
 
@@ -1146,135 +1286,6 @@ async function preprocessForOCR(base64DataUrl) {
     });
 }
 
-/**
- * PRIMARY OCR: Gemini Vision API — highly accurate for Thai + English
- * @param {Object} pdf - pdf.js document object
- * @param {string} apiKey - Gemini API key
- * @returns {Promise<string|null>} extracted text
- */
-async function runGeminiOCR(pdf, apiKey) {
-    const progressContainer = document.getElementById('ocr-progress-container');
-    if (progressContainer) progressContainer.style.display = 'block';
-    updateOCRProgress(0, 'กำลังเตรียมภาพสำหรับ Gemini Vision OCR...');
-
-    try {
-        let allOcrText = '';
-
-        for (let i = 1; i <= pdf.numPages; i++) {
-            const percent = Math.round(((i - 1) / pdf.numPages) * 100);
-            updateOCRProgress(percent, `กำลัง OCR หน้าที่ ${i} จาก ${pdf.numPages} (Gemini Vision)...`);
-
-            const page = await pdf.getPage(i);
-            const base64Url = await renderPageToImage(page, 300);
-
-            // Extract raw base64 (remove data:image/jpeg;base64, prefix)
-            const base64Data = base64Url.split(',')[1];
-
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contents: [{
-                        parts: [
-                            {
-                                inlineData: {
-                                    mimeType: 'image/jpeg',
-                                    data: base64Data
-                                }
-                            },
-                            {
-                                text: 'อ่านข้อความทั้งหมดในภาพนี้ให้ครบถ้วนตามลำดับ ส่งกลับเป็น plain text เท่านั้น ไม่ต้องเพิ่มคำอธิบายหรือ formatting ใดๆ รักษา layout และการจัดย่อหน้าตามต้นฉบับ'
-                            }
-                        ]
-                    }],
-                    generationConfig: {
-                        temperature: 0,
-                        maxOutputTokens: 8192
-                    }
-                })
-            });
-
-            const data = await response.json();
-            if (data.error) throw new Error(data.error.message);
-
-            const pageText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-            if (pageText.trim()) {
-                allOcrText += pageText.trim() + '\n';
-                if (i < pdf.numPages) allOcrText += '\n';
-            }
-        }
-
-        updateOCRProgress(100, 'Gemini Vision OCR เสร็จสมบูรณ์! ✅');
-        setTimeout(() => {
-            if (progressContainer) progressContainer.style.display = 'none';
-        }, 2000);
-
-        return allOcrText.trim() || null;
-    } catch (e) {
-        console.error('Gemini OCR error:', e);
-        showToast('Gemini OCR ล้มเหลว — กำลังลอง Tesseract...', '⚠️');
-        if (progressContainer) progressContainer.style.display = 'none';
-
-        // Fallback to Tesseract
-        return await runTesseractOCR(pdf);
-    }
-}
-
-/**
- * FALLBACK OCR: Tesseract.js with image preprocessing
- * @param {Object} pdf - pdf.js document object
- * @returns {Promise<string|null>} extracted text
- */
-async function runTesseractOCR(pdf) {
-    const progressContainer = document.getElementById('ocr-progress-container');
-    if (progressContainer) progressContainer.style.display = 'block';
-    updateOCRProgress(0, 'กำลังโหลด Tesseract OCR Engine (ครั้งแรกอาจใช้เวลาสักครู่)...');
-
-    try {
-        const worker = await Tesseract.createWorker('tha+eng', 1, {
-            logger: (m) => {
-                if (m.status === 'recognizing text') {
-                    const pageProgress = Math.round(m.progress * 100);
-                    updateOCRProgress(pageProgress, 'กำลังอ่านข้อความ...');
-                }
-            }
-        });
-
-        let allOcrText = '';
-
-        for (let i = 1; i <= pdf.numPages; i++) {
-            const basePercent = Math.round(((i - 1) / pdf.numPages) * 100);
-            updateOCRProgress(basePercent, `กำลัง OCR หน้าที่ ${i} จาก ${pdf.numPages} (Tesseract)...`);
-
-            const page = await pdf.getPage(i);
-            const rawImage = await renderPageToImage(page, 400);
-
-            // Preprocess: grayscale + contrast + Otsu binarization
-            const processedImage = await preprocessForOCR(rawImage);
-
-            const { data: { text } } = await worker.recognize(processedImage);
-
-            if (text && text.trim()) {
-                allOcrText += text.trim() + '\n';
-                if (i < pdf.numPages) allOcrText += '\n';
-            }
-        }
-
-        await worker.terminate();
-
-        updateOCRProgress(100, 'Tesseract OCR เสร็จสมบูรณ์! ✅');
-        setTimeout(() => {
-            if (progressContainer) progressContainer.style.display = 'none';
-        }, 2000);
-
-        return allOcrText.trim() || null;
-    } catch (e) {
-        console.error('Tesseract OCR error:', e);
-        showToast('OCR ล้มเหลว: ' + (e.message || 'ไม่ทราบสาเหตุ'), '❌');
-        if (progressContainer) progressContainer.style.display = 'none';
-        return null;
-    }
-}
 
 /**
  * Update OCR progress bar UI
