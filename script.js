@@ -968,7 +968,6 @@ async function handleDocPDF(input, targetId) {
 
             if (!content.items || content.items.length === 0) continue;
 
-            // Reconstruct lines using Y-coordinate (transform[5])
             let lastY = null;
             let line = '';
 
@@ -1007,17 +1006,32 @@ async function handleDocPDF(input, targetId) {
         const textarea = document.getElementById(targetId);
 
         if (!finalText) {
-            // No text layer found → auto-run OCR
-            showToast('ไม่พบ text layer — เริ่ม OCR อัตโนมัติ...', '🔍');
-            const ocrText = await runOCROnPDF(pdf);
-            if (ocrText) {
-                textarea.value = ocrText;
-                const lineCount = ocrText.split('\n').filter(l => l.trim()).length;
-                showToast(`OCR สำเร็จ (${pdf.numPages} หน้า, ${lineCount} บรรทัด)`, '✅');
+            // No text layer → auto-run OCR
+            const geminiKey = localStorage.getItem('gemini_api_key');
+            if (geminiKey) {
+                showToast('ไม่พบ text layer — เริ่ม Gemini Vision OCR...', '🔍');
+                const ocrText = await runGeminiOCR(pdf, geminiKey);
+                if (ocrText) {
+                    textarea.value = ocrText;
+                    const lineCount = ocrText.split('\n').filter(l => l.trim()).length;
+                    showToast(`Gemini OCR สำเร็จ (${pdf.numPages} หน้า, ${lineCount} บรรทัด)`, '✅');
+                } else {
+                    textarea.value = '';
+                    textarea.placeholder = '⚠️ ไม่สามารถอ่านข้อความได้ — กรุณาวางข้อความด้วยตนเอง';
+                    showToast('OCR ไม่พบข้อความในไฟล์นี้', '⚠️');
+                }
             } else {
-                textarea.value = '';
-                textarea.placeholder = '⚠️ ไม่สามารถอ่านข้อความได้แม้ใช้ OCR — กรุณาวางข้อความด้วยตนเอง';
-                showToast('OCR ไม่พบข้อความในไฟล์นี้', '⚠️');
+                showToast('ไม่พบ text layer — เริ่ม Tesseract OCR...', '🔍');
+                const ocrText = await runTesseractOCR(pdf);
+                if (ocrText) {
+                    textarea.value = ocrText;
+                    const lineCount = ocrText.split('\n').filter(l => l.trim()).length;
+                    showToast(`OCR สำเร็จ (${pdf.numPages} หน้า, ${lineCount} บรรทัด)`, '✅');
+                } else {
+                    textarea.value = '';
+                    textarea.placeholder = '⚠️ ไม่สามารถอ่านข้อความได้ — ลองตั้งค่า Gemini API Key เพื่อ OCR ที่แม่นยำกว่า';
+                    showToast('OCR ไม่พบข้อความ — ลองใช้ Gemini API Key', '⚠️');
+                }
             }
         } else {
             textarea.value = finalText;
@@ -1030,29 +1044,191 @@ async function handleDocPDF(input, targetId) {
     }
 }
 
-/**
- * Render each PDF page to canvas and run Tesseract OCR
- * @param {Object} pdf - pdf.js document object
- * @returns {Promise<string>} extracted text
- */
-async function runOCROnPDF(pdf) {
-    const progressContainer = document.getElementById('ocr-progress-container');
-    const progressBar = document.getElementById('ocr-progress-bar');
-    const progressVal = document.getElementById('ocr-progress-val');
-    const progressText = document.getElementById('ocr-progress-text');
+// ==================== OCR ENGINES ====================
 
-    // Show progress UI
+/**
+ * Render a PDF page to a base64 JPEG image
+ * @param {Object} page - pdf.js page object
+ * @param {number} dpi - render DPI (default 300)
+ * @returns {Promise<string>} base64 data URL
+ */
+async function renderPageToImage(page, dpi = 300) {
+    const scale = dpi / 72;
+    const viewport = page.getViewport({ scale });
+
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+
+    await page.render({ canvasContext: ctx, viewport }).promise;
+    return canvas.toDataURL('image/jpeg', 0.95);
+}
+
+/**
+ * Preprocess canvas image for better OCR (grayscale + contrast + binarize)
+ * @param {string} base64DataUrl - image data URL
+ * @returns {Promise<string>} preprocessed image data URL
+ */
+async function preprocessForOCR(base64DataUrl) {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = img.width;
+            canvas.height = img.height;
+
+            ctx.drawImage(img, 0, 0);
+
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = imageData.data;
+
+            // Step 1: Grayscale + Contrast enhancement
+            for (let i = 0; i < data.length; i += 4) {
+                // Weighted grayscale
+                let gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+
+                // Increase contrast (factor 1.5)
+                gray = ((gray - 128) * 1.5) + 128;
+                gray = Math.max(0, Math.min(255, gray));
+
+                data[i] = data[i + 1] = data[i + 2] = gray;
+            }
+
+            // Step 2: Otsu's binarization
+            const histogram = new Array(256).fill(0);
+            for (let i = 0; i < data.length; i += 4) {
+                histogram[data[i]]++;
+            }
+
+            const totalPixels = data.length / 4;
+            let sum = 0;
+            for (let i = 0; i < 256; i++) sum += i * histogram[i];
+
+            let sumB = 0, wB = 0, wF = 0;
+            let maxVariance = 0, threshold = 128;
+
+            for (let t = 0; t < 256; t++) {
+                wB += histogram[t];
+                if (wB === 0) continue;
+                wF = totalPixels - wB;
+                if (wF === 0) break;
+
+                sumB += t * histogram[t];
+                const mB = sumB / wB;
+                const mF = (sum - sumB) / wF;
+                const variance = wB * wF * (mB - mF) * (mB - mF);
+
+                if (variance > maxVariance) {
+                    maxVariance = variance;
+                    threshold = t;
+                }
+            }
+
+            // Apply threshold
+            for (let i = 0; i < data.length; i += 4) {
+                const val = data[i] > threshold ? 255 : 0;
+                data[i] = data[i + 1] = data[i + 2] = val;
+            }
+
+            ctx.putImageData(imageData, 0, 0);
+            resolve(canvas.toDataURL('image/png'));
+        };
+        img.src = base64DataUrl;
+    });
+}
+
+/**
+ * PRIMARY OCR: Gemini Vision API — highly accurate for Thai + English
+ * @param {Object} pdf - pdf.js document object
+ * @param {string} apiKey - Gemini API key
+ * @returns {Promise<string|null>} extracted text
+ */
+async function runGeminiOCR(pdf, apiKey) {
+    const progressContainer = document.getElementById('ocr-progress-container');
     if (progressContainer) progressContainer.style.display = 'block';
-    updateOCRProgress(0, 'กำลังโหลด OCR Engine (ครั้งแรกอาจใช้เวลาสักครู่)...');
+    updateOCRProgress(0, 'กำลังเตรียมภาพสำหรับ Gemini Vision OCR...');
 
     try {
-        // Create Tesseract worker with Thai + English
+        let allOcrText = '';
+
+        for (let i = 1; i <= pdf.numPages; i++) {
+            const percent = Math.round(((i - 1) / pdf.numPages) * 100);
+            updateOCRProgress(percent, `กำลัง OCR หน้าที่ ${i} จาก ${pdf.numPages} (Gemini Vision)...`);
+
+            const page = await pdf.getPage(i);
+            const base64Url = await renderPageToImage(page, 300);
+
+            // Extract raw base64 (remove data:image/jpeg;base64, prefix)
+            const base64Data = base64Url.split(',')[1];
+
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{
+                        parts: [
+                            {
+                                inlineData: {
+                                    mimeType: 'image/jpeg',
+                                    data: base64Data
+                                }
+                            },
+                            {
+                                text: 'อ่านข้อความทั้งหมดในภาพนี้ให้ครบถ้วนตามลำดับ ส่งกลับเป็น plain text เท่านั้น ไม่ต้องเพิ่มคำอธิบายหรือ formatting ใดๆ รักษา layout และการจัดย่อหน้าตามต้นฉบับ'
+                            }
+                        ]
+                    }],
+                    generationConfig: {
+                        temperature: 0,
+                        maxOutputTokens: 8192
+                    }
+                })
+            });
+
+            const data = await response.json();
+            if (data.error) throw new Error(data.error.message);
+
+            const pageText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+            if (pageText.trim()) {
+                allOcrText += pageText.trim() + '\n';
+                if (i < pdf.numPages) allOcrText += '\n';
+            }
+        }
+
+        updateOCRProgress(100, 'Gemini Vision OCR เสร็จสมบูรณ์! ✅');
+        setTimeout(() => {
+            if (progressContainer) progressContainer.style.display = 'none';
+        }, 2000);
+
+        return allOcrText.trim() || null;
+    } catch (e) {
+        console.error('Gemini OCR error:', e);
+        showToast('Gemini OCR ล้มเหลว — กำลังลอง Tesseract...', '⚠️');
+        if (progressContainer) progressContainer.style.display = 'none';
+
+        // Fallback to Tesseract
+        return await runTesseractOCR(pdf);
+    }
+}
+
+/**
+ * FALLBACK OCR: Tesseract.js with image preprocessing
+ * @param {Object} pdf - pdf.js document object
+ * @returns {Promise<string|null>} extracted text
+ */
+async function runTesseractOCR(pdf) {
+    const progressContainer = document.getElementById('ocr-progress-container');
+    if (progressContainer) progressContainer.style.display = 'block';
+    updateOCRProgress(0, 'กำลังโหลด Tesseract OCR Engine (ครั้งแรกอาจใช้เวลาสักครู่)...');
+
+    try {
         const worker = await Tesseract.createWorker('tha+eng', 1, {
             logger: (m) => {
                 if (m.status === 'recognizing text') {
-                    // Per-page progress within current page
                     const pageProgress = Math.round(m.progress * 100);
-                    updateOCRProgress(pageProgress, `กำลังอ่านข้อความ...`);
+                    updateOCRProgress(pageProgress, 'กำลังอ่านข้อความ...');
                 }
             }
         });
@@ -1061,22 +1237,15 @@ async function runOCROnPDF(pdf) {
 
         for (let i = 1; i <= pdf.numPages; i++) {
             const basePercent = Math.round(((i - 1) / pdf.numPages) * 100);
-            updateOCRProgress(basePercent, `กำลัง OCR หน้าที่ ${i} จาก ${pdf.numPages}...`);
+            updateOCRProgress(basePercent, `กำลัง OCR หน้าที่ ${i} จาก ${pdf.numPages} (Tesseract)...`);
 
-            // Render page to canvas at 300 DPI for best OCR quality
             const page = await pdf.getPage(i);
-            const scale = 300 / 72; // 300 DPI
-            const viewport = page.getViewport({ scale });
+            const rawImage = await renderPageToImage(page, 400);
 
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            canvas.width = viewport.width;
-            canvas.height = viewport.height;
+            // Preprocess: grayscale + contrast + Otsu binarization
+            const processedImage = await preprocessForOCR(rawImage);
 
-            await page.render({ canvasContext: ctx, viewport }).promise;
-
-            // Run OCR on canvas
-            const { data: { text } } = await worker.recognize(canvas);
+            const { data: { text } } = await worker.recognize(processedImage);
 
             if (text && text.trim()) {
                 allOcrText += text.trim() + '\n';
@@ -1086,14 +1255,14 @@ async function runOCROnPDF(pdf) {
 
         await worker.terminate();
 
-        updateOCRProgress(100, 'OCR เสร็จสมบูรณ์! ✅');
+        updateOCRProgress(100, 'Tesseract OCR เสร็จสมบูรณ์! ✅');
         setTimeout(() => {
             if (progressContainer) progressContainer.style.display = 'none';
         }, 2000);
 
         return allOcrText.trim() || null;
     } catch (e) {
-        console.error('OCR error:', e);
+        console.error('Tesseract OCR error:', e);
         showToast('OCR ล้มเหลว: ' + (e.message || 'ไม่ทราบสาเหตุ'), '❌');
         if (progressContainer) progressContainer.style.display = 'none';
         return null;
