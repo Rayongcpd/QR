@@ -1018,7 +1018,7 @@ async function handleDocPDF(input, targetId) {
                 }
 
                 if (ocrResult) {
-                    allText += ocrResult + '\n';
+                    allText += healThaiText(ocrResult) + '\n';
                 }
             }
 
@@ -1100,7 +1100,34 @@ function extractTextFromPage(content) {
         text += line.trim() + '\n';
     }
 
-    return text.trim();
+    return healThaiText(text.trim());
+}
+
+/**
+ * Heal broken Thai characters (OCR artifacts)
+ * - Fixes separated 'Sara Am' (ํ + า -> ำ)
+ * - Removes unnecessary spaces before Thai vowels/tone marks
+ * @param {string} text 
+ * @returns {string}
+ */
+function healThaiText(text) {
+    if (!text) return '';
+    
+    return text
+        // 1. Fix separated Sara Am (ํ + space + า -> ำ)
+        .replace(/\u0E4D\s+\u0E32/g, '\u0E33')
+        .replace(/\u0E4D\u0E32/g, '\u0E33')
+        
+        // 2. Fix tone marks separated from base character by space
+        // (Base Char) + (Space) + (Tone Mark/Upper Vowel) -> Join them
+        .replace(/([ก-ฮ])\s+([\u0E31\u0E34-\u0E37\u0E47-\u0E4E])/g, '$1$2')
+        
+        // 3. Fix Sara Aa separated by space (ค า -> คา)
+        // Only if it's likely a single word (char + space + า)
+        .replace(/([ก-ฮ])\s+\u0E32(?!\s)/g, '$1\u0E32')
+
+        // 4. General cleanup for broken Thai ligatures
+        .replace(/\s+([\u0E30-\u0E39\u0E40-\u0E4C])/g, '$1');
 }
 
 /**
@@ -1170,7 +1197,7 @@ async function ocrSinglePageGemini(page, apiKey, pageNum, totalPages) {
                 contents: [{
                     parts: [
                         { inlineData: { mimeType: 'image/jpeg', data: base64Data } },
-                        { text: 'อ่านข้อความภาษาไทยและอังกฤษทั้งหมดในภาพนี้ให้ครบถ้วน ห้ามสรุป ห้ามข้ามคำ ส่งกลับเป็น plain text เท่านั้น โดยรักษาการขึ้นบรรทัดใหม่และย่อหน้าให้ตรงตามต้นฉบับมากที่สุด' }
+                        { text: 'อ่านข้อความภาษาไทยและอังกฤษทั้งหมดในภาพนี้อย่างละเอียด ห้ามข้ามคำ รักษาการขึ้นบรรทัดใหม่ตามต้นฉบับ\n\nคำแนะนำพิเศษสำหรับภาษาไทย:\n1. ห้ามแยกสระอำ (ำ) เป็น ํ และ า\n2. วางวรรณยุกต์และสระบน/ล่างให้ตรงตำแหน่งพยัญชนะ\n3. ส่งกลับเป็นข้อความ Plain Text เท่านั้น' }
                     ]
                 }],
                 generationConfig: { temperature: 0.1, maxOutputTokens: 8192 }
