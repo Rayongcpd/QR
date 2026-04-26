@@ -960,13 +960,66 @@ async function handleDocPDF(input, targetId) {
     try {
         const arrayBuffer = await file.arrayBuffer();
         const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-        let text = "";
+        let allText = '';
+
         for (let i = 1; i <= pdf.numPages; i++) {
             const page = await pdf.getPage(i);
             const content = await page.getTextContent();
-            text += content.items.map(it => it.str).join(" ") + "\n";
+
+            if (!content.items || content.items.length === 0) continue;
+
+            // Reconstruct lines using Y-coordinate (transform[5])
+            let lastY = null;
+            let line = '';
+
+            content.items.forEach(item => {
+                const str = item.str;
+                if (str === '' && !item.hasEOL) return;
+
+                const y = item.transform ? item.transform[5] : null;
+
+                if (lastY !== null && y !== null && Math.abs(lastY - y) > 2) {
+                    // Y changed → new line
+                    allText += line.trim() + '\n';
+                    line = '';
+                }
+
+                line += str;
+
+                if (item.hasEOL) {
+                    allText += line.trim() + '\n';
+                    line = '';
+                    lastY = null;
+                } else {
+                    lastY = y;
+                }
+            });
+
+            // Flush remaining line
+            if (line.trim()) {
+                allText += line.trim() + '\n';
+            }
+
+            // Separator between pages
+            if (i < pdf.numPages) {
+                allText += '\n';
+            }
         }
-        document.getElementById(targetId).value = text.trim();
-        showToast('อ่าน PDF สำเร็จ', '📄');
-    } catch (e) { showToast('อ่าน PDF ล้มเหลว', '❌'); }
+
+        const finalText = allText.trim();
+        const textarea = document.getElementById(targetId);
+
+        if (!finalText) {
+            textarea.value = '';
+            textarea.placeholder = '⚠️ PDF นี้เป็นไฟล์ภาพ (Scanned) — ไม่สามารถอ่านข้อความได้\nกรุณาวางข้อความด้วยตนเอง หรือใช้ไฟล์ PDF ที่มี text layer';
+            showToast('PDF นี้เป็นไฟล์ภาพ (Scanned) — ไม่พบข้อความ', '⚠️');
+        } else {
+            textarea.value = finalText;
+            const lineCount = finalText.split('\n').filter(l => l.trim()).length;
+            showToast(`อ่าน PDF สำเร็จ (${pdf.numPages} หน้า, ${lineCount} บรรทัด)`, '📄');
+        }
+    } catch (e) {
+        console.error('PDF read error:', e);
+        showToast('อ่าน PDF ล้มเหลว: ' + (e.message || 'ไม่ทราบสาเหตุ'), '❌');
+    }
 }
