@@ -1050,10 +1050,77 @@ function analyzeWithAI(text) {
     }, 1500);
 }
 
+/**
+ * Update Gemini Status Indicator UI
+ * @param {'online'|'offline'|'busy'|'unknown'} status 
+ */
+function updateGeminiStatus(status) {
+    const dot = document.getElementById('gemini-status-dot');
+    const text = document.getElementById('gemini-status-text');
+    if (!dot || !text) return;
+
+    dot.className = 'status-dot ' + status;
+    
+    switch(status) {
+        case 'online': 
+            text.textContent = 'Ready'; 
+            text.style.color = '#10b981';
+            dot.title = 'Gemini API is ready to process';
+            break;
+        case 'offline': 
+            text.textContent = 'Error'; 
+            text.style.color = '#ef4444';
+            dot.title = 'API connection error or invalid key';
+            break;
+        case 'busy': 
+            text.textContent = 'Busy'; 
+            text.style.color = '#f59e0b';
+            dot.title = 'High demand (Service temporarily unavailable)';
+            break;
+        default: 
+            text.textContent = 'Unknown'; 
+            text.style.color = '#64748b';
+            dot.title = 'Checking API status...';
+    }
+}
+
+/**
+ * Perform a lightweight check on Gemini API status
+ */
+async function checkGeminiStatus() {
+    const key = localStorage.getItem('gemini_api_key');
+    if (!key) {
+        updateGeminiStatus('unknown');
+        return;
+    }
+
+    try {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: "ping" }] }],
+                generationConfig: { maxOutputTokens: 1 }
+            })
+        });
+
+        if (response.status === 200) {
+            updateGeminiStatus('online');
+        } else if (response.status === 503 || response.status === 429) {
+            updateGeminiStatus('busy');
+        } else {
+            updateGeminiStatus('offline');
+        }
+    } catch (e) {
+        updateGeminiStatus('offline');
+    }
+}
+
 function updateGeminiUI() {
     const key = localStorage.getItem('gemini_api_key');
     const actionEl = document.getElementById('gemini-action');
     if (actionEl) actionEl.style.display = key ? 'block' : 'none';
+    checkGeminiStatus();
 }
 
 function toggleGeminiSettings() {
@@ -1121,7 +1188,17 @@ async function runDeepAnalysis() {
         if (actionsEl) actionsEl.style.display = 'flex';
 
         showToast('วิเคราะห์เจาะลึกสำเร็จ', '🚀');
+        updateGeminiStatus('online');
     } catch (e) {
+        console.error('Gemini Analysis Error:', e);
+        
+        // Detailed error detection for status
+        if (e.message.includes('503') || e.message.includes('busy') || e.message.includes('demand')) {
+            updateGeminiStatus('busy');
+        } else {
+            updateGeminiStatus('offline');
+        }
+
         showToast('Gemini API Error: ' + e.message, '❌');
         aiOutput.innerHTML = originalContent;
     }
