@@ -719,7 +719,8 @@ function inlineDiff(str1, str2, dmp) {
   dmp.diff_cleanupSemantic(diffs);
 
   let leftHtml = '', rightHtml = '';
-  diffs.forEach(([type, text]) => {
+  diffs.forEach(part => {
+    const type = part[0], text = part[1];
     const escaped = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     if (type === 0) {
       leftHtml += escaped;
