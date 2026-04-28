@@ -692,14 +692,37 @@ function computeLineDiff(text1, text2) {
     }
   }
 
-  // Merge consecutive delete+insert pairs into 'change' pairs
+  // Merge blocks of consecutive deletes + inserts into paired 'change' rows
   const merged = [];
   let k = 0;
   while (k < pairs.length) {
-    if (pairs[k].type === 'delete' && k + 1 < pairs.length && pairs[k + 1].type === 'insert') {
-      merged.push({ type: 'change', left: pairs[k].left, right: pairs[k + 1].right });
-      k += 2;
-    } else {
+    // Collect consecutive deletes
+    const deletes = [];
+    while (k < pairs.length && pairs[k].type === 'delete') {
+      deletes.push(pairs[k]);
+      k++;
+    }
+    // Collect consecutive inserts right after the deletes
+    const inserts = [];
+    while (k < pairs.length && pairs[k].type === 'insert') {
+      inserts.push(pairs[k]);
+      k++;
+    }
+    // Pair them 1:1 as 'change' rows; leftovers stay as delete/insert
+    const maxLen = Math.max(deletes.length, inserts.length);
+    for (let p = 0; p < maxLen; p++) {
+      const del = deletes[p];
+      const ins = inserts[p];
+      if (del && ins) {
+        merged.push({ type: 'change', left: del.left, right: ins.right });
+      } else if (del) {
+        merged.push(del);
+      } else if (ins) {
+        merged.push(ins);
+      }
+    }
+    // Push equal or any other type
+    if (k < pairs.length && pairs[k].type !== 'delete' && pairs[k].type !== 'insert') {
       merged.push(pairs[k]);
       k++;
     }
