@@ -655,6 +655,84 @@ function showToast(msg, icon) {
 
 let customRules = JSON.parse(localStorage.getItem('ai_custom_rules')) || [];
 
+/**
+ * Compute LCS-based line-level diff between two texts.
+ * Returns array of { type: 'equal'|'delete'|'insert', left, right } pairs.
+ */
+function computeLineDiff(text1, text2) {
+  const lines1 = text1.split('\n');
+  const lines2 = text2.split('\n');
+  const m = lines1.length, n = lines2.length;
+
+  // Build LCS table
+  const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      if (lines1[i - 1] === lines2[j - 1]) {
+        dp[i][j] = dp[i - 1][j - 1] + 1;
+      } else {
+        dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+      }
+    }
+  }
+
+  // Trace back to get diff pairs
+  const pairs = [];
+  let i = m, j = n;
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && lines1[i - 1] === lines2[j - 1]) {
+      pairs.unshift({ type: 'equal', left: lines1[i - 1], right: lines2[j - 1] });
+      i--; j--;
+    } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+      pairs.unshift({ type: 'insert', left: null, right: lines2[j - 1] });
+      j--;
+    } else {
+      pairs.unshift({ type: 'delete', left: lines1[i - 1], right: null });
+      i--;
+    }
+  }
+
+  // Merge consecutive delete+insert pairs into 'change' pairs
+  const merged = [];
+  let k = 0;
+  while (k < pairs.length) {
+    if (pairs[k].type === 'delete' && k + 1 < pairs.length && pairs[k + 1].type === 'insert') {
+      merged.push({ type: 'change', left: pairs[k].left, right: pairs[k + 1].right });
+      k += 2;
+    } else {
+      merged.push(pairs[k]);
+      k++;
+    }
+  }
+  return merged;
+}
+
+/**
+ * Highlight inline character-level differences within a line pair.
+ */
+function inlineDiff(str1, str2, dmp) {
+  if (!str1 && !str2) return { left: '', right: '' };
+  if (!str1) return { left: '', right: str2 };
+  if (!str2) return { left: str1, right: '' };
+
+  const diffs = dmp.diff_main(str1, str2);
+  dmp.diff_cleanupSemantic(diffs);
+
+  let leftHtml = '', rightHtml = '';
+  diffs.forEach(([type, text]) => {
+    const escaped = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    if (type === 0) {
+      leftHtml += escaped;
+      rightHtml += escaped;
+    } else if (type === -1) {
+      leftHtml += `<mark class="diff-del">${escaped}</mark>`;
+    } else if (type === 1) {
+      rightHtml += `<mark class="diff-add">${escaped}</mark>`;
+    }
+  });
+  return { left: leftHtml, right: rightHtml };
+}
+
 function handleDocCompare() {
     const t1 = document.getElementById('dg-text-1').value.trim();
     const t2 = document.getElementById('dg-text-2').value.trim();
@@ -681,23 +759,41 @@ function handleDocCompare() {
         showToast('ไม่พบไลบรารีเปรียบเทียบข้อความ', '❌');
         return;
     }
-    
-    const diffs = dmp.diff_main(t1, t2);
-    dmp.diff_cleanupSemantic(diffs);
 
-    let leftHtml = '', rightHtml = '', addedCount = 0, removedCount = 0;
+    // Line-level diff
+    const pairs = computeLineDiff(t1, t2);
+    let addedCount = 0, removedCount = 0;
+    let rowsHtml = '';
 
-    diffs.forEach(part => {
-        const type = part[0], text = part[1].replace(/\n/g, '<br>');
-        if (type === 0) { 
-            leftHtml += `<span>${text}</span>`; 
-            rightHtml += `<span>${text}</span>`; 
-        } else if (type === -1) { 
-            leftHtml += `<span class="diff-del">${text}</span>`; 
-            removedCount += part[1].length; 
-        } else if (type === 1) { 
-            rightHtml += `<span class="diff-add">${text}</span>`; 
-            addedCount += part[1].length; 
+    pairs.forEach(pair => {
+        if (pair.type === 'equal') {
+            const escaped = pair.left.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+            rowsHtml += `<div class="diff-row diff-row-equal">
+                <div class="diff-cell diff-cell-left">${escaped || '&nbsp;'}</div>
+                <div class="diff-cell diff-cell-right">${escaped || '&nbsp;'}</div>
+            </div>`;
+        } else if (pair.type === 'delete') {
+            const escaped = pair.left.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+            removedCount += pair.left.length;
+            rowsHtml += `<div class="diff-row diff-row-delete">
+                <div class="diff-cell diff-cell-left diff-cell-del">${escaped || '&nbsp;'}</div>
+                <div class="diff-cell diff-cell-right diff-cell-empty"></div>
+            </div>`;
+        } else if (pair.type === 'insert') {
+            const escaped = pair.right.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+            addedCount += pair.right.length;
+            rowsHtml += `<div class="diff-row diff-row-insert">
+                <div class="diff-cell diff-cell-left diff-cell-empty"></div>
+                <div class="diff-cell diff-cell-right diff-cell-add">${escaped || '&nbsp;'}</div>
+            </div>`;
+        } else if (pair.type === 'change') {
+            const { left: lHtml, right: rHtml } = inlineDiff(pair.left, pair.right, dmp);
+            removedCount += pair.left.length;
+            addedCount += pair.right.length;
+            rowsHtml += `<div class="diff-row diff-row-change">
+                <div class="diff-cell diff-cell-left diff-cell-del">${lHtml || '&nbsp;'}</div>
+                <div class="diff-cell diff-cell-right diff-cell-add">${rHtml || '&nbsp;'}</div>
+            </div>`;
         }
     });
 
@@ -705,13 +801,22 @@ function handleDocCompare() {
     const rightEl = document.getElementById('dg-diff-right');
     const summaryEl = document.getElementById('dg-summary-bar');
 
-    if (leftEl) leftEl.innerHTML = leftHtml;
-    if (rightEl) rightEl.innerHTML = rightHtml;
+    // Render paired rows into a wrapper — we use the existing container differently
+    // Put all rows into left col (which now spans both columns via CSS)
+    if (leftEl) {
+        leftEl.innerHTML = rowsHtml;
+        leftEl.style.padding = '0';
+    }
+    if (rightEl) {
+        rightEl.innerHTML = '';
+        rightEl.style.display = 'none';
+    }
 
     if (summaryEl) {
         summaryEl.innerHTML = `
-            <div class="summary-item"><span style="color:#ef4444">●</span> ลบ ${removedCount}</div>
-            <div class="summary-item"><span style="color:#10b981">●</span> เพิ่ม ${addedCount}</div>
+            <div class="summary-item"><span style="color:#ef4444">●</span> ลบ ${removedCount} ตัวอักษร</div>
+            <div class="summary-item"><span style="color:#10b981">●</span> เพิ่ม ${addedCount} ตัวอักษร</div>
+            <div class="summary-item"><span style="color:#64748b">●</span> ${pairs.filter(p=>p.type==='equal').length} บรรทัดเหมือนกัน</div>
         `;
     }
 
