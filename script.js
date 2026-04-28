@@ -1041,6 +1041,11 @@ function analyzeWithAI(text) {
             aiOutput.innerHTML = html;
             if (allKeywords.length > 0) highlightRiskKeywords(allKeywords);
         }
+        
+        // Show action buttons
+        const actionsEl = document.getElementById('ai-result-actions');
+        if (actionsEl) actionsEl.style.display = 'flex';
+
         updateGeminiUI();
     }, 1500);
 }
@@ -1110,6 +1115,11 @@ async function runDeepAnalysis() {
             </div>
             <button onclick="analyzeWithAI(document.getElementById('dg-text-2').value)" style="margin-top:12px; background:none; border:none; color:#64748b; font-size:12px; text-decoration:underline; cursor:pointer;">ย้อนกลับไปใช้ Rule Engine</button>
         `;
+
+        // Show action buttons
+        const actionsEl = document.getElementById('ai-result-actions');
+        if (actionsEl) actionsEl.style.display = 'flex';
+
         showToast('วิเคราะห์เจาะลึกสำเร็จ', '🚀');
     } catch (e) {
         showToast('Gemini API Error: ' + e.message, '❌');

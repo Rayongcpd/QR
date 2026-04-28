@@ -891,6 +891,16 @@
                                 กำลังรอผลการวิเคราะห์...
                             </div>
 
+                            <!-- AI Result Actions -->
+                            <div id="ai-result-actions" style="display:none; margin-top:20px; gap:10px; flex-wrap:wrap;">
+                                <button onclick="copyAIAnalysis()" class="learning-btn" style="background:rgba(59,130,246,0.1); color:#60a5fa; border-color:rgba(59,130,246,0.2);">
+                                    📋 คัดลอกผลวิเคราะห์
+                                </button>
+                                <button onclick="downloadAIAnalysis()" class="learning-btn" style="background:rgba(16,185,129,0.1); color:#10b981; border-color:rgba(16,185,129,0.2);">
+                                    📥 ดาวน์โหลดไฟล์ .txt
+                                </button>
+                            </div>
+
                             <div id="gemini-action" style="margin-top:20px;display:none;">
                                 <button onclick="runDeepAnalysis()" class="btn-primary" style="width:100%;background:linear-gradient(90deg, #4285f4, #9b51e0);border:none;box-shadow:0 4px 15px rgba(66,133,244,0.3);">
                                     🚀 Deep Analysis with Gemini
