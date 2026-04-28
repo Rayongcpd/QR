@@ -654,6 +654,77 @@ function showToast(msg, icon) {
 // ==================== DOCGUARD AI (DOCUMENT REVIEW & LEARNING) ====================
 
 let customRules = JSON.parse(localStorage.getItem('ai_custom_rules')) || [];
+let currentReviewMode = 'compare'; // 'compare' | 'analyze'
+
+/**
+ * Switch between Compare and Analyze-Only modes
+ * @param {'compare'|'analyze'} mode
+ */
+function setReviewMode(mode) {
+    currentReviewMode = mode;
+    const compareBtn = document.getElementById('mode-compare');
+    const analyzeBtn = document.getElementById('mode-analyze');
+    const originalPanel = document.getElementById('dg-original-panel');
+    const textareasGrid = document.getElementById('dg-textareas-grid');
+    const text2Label = document.getElementById('dg-text-2-label');
+    const actionBtn = document.getElementById('btn-review-action');
+
+    // Toggle active button
+    if (compareBtn) compareBtn.classList.toggle('active', mode === 'compare');
+    if (analyzeBtn) analyzeBtn.classList.toggle('active', mode === 'analyze');
+
+    if (mode === 'analyze') {
+        // Hide original panel, make textarea 2 full-width
+        if (originalPanel) originalPanel.style.display = 'none';
+        if (textareasGrid) textareasGrid.style.gridTemplateColumns = '1fr';
+        if (text2Label) text2Label.textContent = 'เอกสารที่ต้องการวิเคราะห์';
+        if (actionBtn) actionBtn.textContent = 'เริ่มวิเคราะห์ด้วย AI 🔍';
+    } else {
+        // Show original panel, restore 2-column layout
+        if (originalPanel) originalPanel.style.display = 'block';
+        if (textareasGrid) textareasGrid.style.gridTemplateColumns = '';
+        if (text2Label) text2Label.textContent = 'เอกสารฉบับแก้ไข (Revised)';
+        if (actionBtn) actionBtn.textContent = 'เริ่มการตรวจสอบอัจฉริยะ ✨';
+    }
+
+    // Hide previous results
+    const resultsArea = document.getElementById('dg-results');
+    if (resultsArea) resultsArea.style.display = 'none';
+}
+
+/**
+ * Route action based on current review mode
+ */
+function handleReviewAction() {
+    if (currentReviewMode === 'analyze') {
+        handleAnalyzeOnly();
+    } else {
+        handleDocCompare();
+    }
+}
+
+/**
+ * Analyze-only mode: skip diff, go straight to AI analysis
+ */
+function handleAnalyzeOnly() {
+    const text = document.getElementById('dg-text-2').value.trim();
+
+    if (!text) {
+        showToast('กรุณากรอกข้อความเอกสารที่ต้องการวิเคราะห์', '⚠️');
+        return;
+    }
+
+    const resultsArea = document.getElementById('dg-results');
+    resultsArea.style.display = 'block';
+    resultsArea.scrollIntoView({ behavior: 'smooth' });
+
+    // Hide diff section, show only AI panel
+    const diffSection = resultsArea.querySelector('.glass');
+    if (diffSection) diffSection.style.display = 'none';
+
+    // Run AI analysis directly
+    analyzeWithAI(text);
+}
 
 /**
  * Compute LCS-based line-level diff between two texts.
@@ -769,6 +840,10 @@ function handleDocCompare() {
     const resultsArea = document.getElementById('dg-results');
     resultsArea.style.display = 'block';
     resultsArea.scrollIntoView({ behavior: 'smooth' });
+
+    // Restore diff section visibility (may have been hidden by analyze-only mode)
+    const diffSection = resultsArea.querySelector('.glass');
+    if (diffSection) diffSection.style.display = 'block';
 
     let dmp;
     try {

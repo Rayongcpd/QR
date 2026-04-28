@@ -769,8 +769,18 @@
                         ตรวจสอบและเปรียบเทียบเอกสาร
                     </h2>
 
-                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-                        <div>
+                    <!-- Mode Switcher -->
+                    <div style="display:flex;gap:8px;margin-bottom:24px;">
+                        <button onclick="setReviewMode('compare')" id="mode-compare" class="type-badge active" style="display:flex;align-items:center;gap:6px;">
+                            📊 เปรียบเทียบ 2 ฉบับ
+                        </button>
+                        <button onclick="setReviewMode('analyze')" id="mode-analyze" class="type-badge" style="display:flex;align-items:center;gap:6px;">
+                            🔍 วิเคราะห์อย่างเดียว
+                        </button>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8" id="dg-textareas-grid">
+                        <div id="dg-original-panel">
                             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
                                 <p class="field-label" style="margin-bottom:0;">เอกสารต้นฉบับ (Original)</p>
                                 <button onclick="document.getElementById('dg-pdf-1').click()" class="type-badge" style="padding:4px 10px; font-size:11px;">📄 อัปโหลด PDF</button>
@@ -780,7 +790,7 @@
                         </div>
                         <div>
                             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                                <p class="field-label" style="margin-bottom:0;">เอกสารฉบับแก้ไข (Revised)</p>
+                                <p class="field-label" style="margin-bottom:0;" id="dg-text-2-label">เอกสารฉบับแก้ไข (Revised)</p>
                                 <button onclick="document.getElementById('dg-pdf-2').click()" class="type-badge" style="padding:4px 10px; font-size:11px;">📄 อัปโหลด PDF</button>
                                 <input type="file" id="dg-pdf-2" hidden accept=".pdf" onchange="handleDocPDF(this, 'dg-text-2')">
                             </div>
@@ -834,7 +844,7 @@
                     </div>
 
                     <div class="flex justify-center mb-8">
-                        <button onclick="handleDocCompare()" class="btn-primary" style="max-width:300px;">
+                        <button onclick="handleReviewAction()" id="btn-review-action" class="btn-primary" style="max-width:300px;">
                             เริ่มการตรวจสอบอัจฉริยะ ✨
                         </button>
                     </div>
