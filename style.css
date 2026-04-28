@@ -323,6 +323,36 @@ mark.diff-add {
     padding: 0 2px;
 }
 
+/* Status Indicator Dots */
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-left: 8px;
+    position: relative;
+}
+.status-dot.online { background-color: #10b981; box-shadow: 0 0 8px #10b981; }
+.status-dot.offline { background-color: #ef4444; box-shadow: 0 0 8px #ef4444; }
+.status-dot.busy { background-color: #f59e0b; box-shadow: 0 0 8px #f59e0b; }
+.status-dot.unknown { background-color: #64748b; }
+
+.status-dot::after {
+    content: '';
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background: inherit;
+    opacity: 0.6;
+    animation: pulse-dot 2s infinite;
+}
+
+@keyframes pulse-dot {
+    0% { transform: scale(1); opacity: 0.6; }
+    100% { transform: scale(3); opacity: 0; }
+}
+
 .diff-col {
     padding: 24px;
     background: rgba(15, 23, 42, 0.6);
