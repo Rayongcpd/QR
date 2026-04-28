@@ -1084,15 +1084,26 @@ function updateGeminiStatus(status) {
     }
 }
 
+let lastGeminiCheck = 0;
+const CHECK_COOLDOWN = 5 * 60 * 1000; // 5 minutes
+
 /**
- * Perform a lightweight check on Gemini API status
+ * Perform a lightweight check on Gemini API status (Optimized for Quota)
  */
-async function checkGeminiStatus() {
+async function checkGeminiStatus(force = false) {
     const key = localStorage.getItem('gemini_api_key');
     if (!key) {
         updateGeminiStatus('unknown');
         return;
     }
+
+    // Skip if checked recently (to save quota)
+    const now = Date.now();
+    if (!force && (now - lastGeminiCheck < CHECK_COOLDOWN)) {
+        return; 
+    }
+
+    lastGeminiCheck = now;
 
     try {
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, {
