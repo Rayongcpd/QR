@@ -6,6 +6,11 @@
 // ==================== CONFIGURATION ====================
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbyEWuqp7mjsHPl_0hB64LsscEtuoBjUxy31JtpQ2wt4VJGXUbfIeK2LpRxhBd5MP5UlTQ/exec'; 
 
+// ==================== TYPHOON OCR CONFIGURATION ====================
+const TYPHOON_API_URL = 'https://api.opentyphoon.ai/v1/chat/completions';
+const TYPHOON_MODEL = 'typhoon-ocr';
+const TYPHOON_API_KEY = 'sk-alpwlCHv00JU6aQ3ichM6VuvSOKxM50JaMBKHH3PPIeUmgcz';
+
 // ==================== STATE MANAGEMENT ====================
 let currentTab = 'qr';
 let currentQRType = 'url';
@@ -50,12 +55,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     updateGeminiUI();
 
-    // OCR Gemini Key Init — sync with existing key
-    const ocrKeyInput = document.getElementById('ocr-gemini-key');
-    if (ocrKeyInput) {
-        ocrKeyInput.value = localStorage.getItem('gemini_api_key') || '';
-    }
-    updateOCRModeLabel();
+    // Typhoon OCR — API key is hardcoded, no input needed
 });
 
 // ==================== CORE FUNCTIONS ====================
@@ -1267,7 +1267,6 @@ async function handleDocPDF(input, targetId) {
     if (!file || file.type !== 'application/pdf') { showToast('กรุณาเลือกไฟล์ PDF', '⚠️'); return; }
     showToast('กำลังอ่าน PDF...', '⏳');
 
-    const geminiKey = localStorage.getItem('gemini_api_key');
     const progressContainer = document.getElementById('ocr-progress-container');
 
     try {
@@ -1277,8 +1276,7 @@ async function handleDocPDF(input, targetId) {
         let ocrPageCount = 0;
         let textPageCount = 0;
 
-        // Prepare OCR worker only if needed (lazy init)
-        let tesseractWorker = null;
+
 
         for (let i = 1; i <= pdf.numPages; i++) {
             const page = await pdf.getPage(i);
@@ -1302,21 +1300,11 @@ async function handleDocPDF(input, targetId) {
 
                 let ocrResult = '';
 
-                if (geminiKey) {
-                    try {
-                        ocrResult = await ocrSinglePageGemini(page, geminiKey, i, pdf.numPages);
-                        if (!ocrResult || !isMeaningfulText(ocrResult)) {
-                            throw new Error('Gemini output empty or poor quality');
-                        }
-                    } catch (gemErr) {
-                        console.warn(`Gemini OCR failed on page ${i}, falling back to Tesseract:`, gemErr);
-                        // Fallback to Tesseract inside the same page loop
-                        tesseractWorker = await initTesseractWorker(tesseractWorker);
-                        ocrResult = await ocrSinglePageTesseract(page, tesseractWorker, i, pdf.numPages);
-                    }
-                } else {
-                    tesseractWorker = await initTesseractWorker(tesseractWorker);
-                    ocrResult = await ocrSinglePageTesseract(page, tesseractWorker, i, pdf.numPages);
+                try {
+                    ocrResult = await ocrSinglePageTyphoon(page, i, pdf.numPages);
+                } catch (typhErr) {
+                    console.error(`Typhoon OCR failed on page ${i}:`, typhErr);
+                    ocrResult = '';
                 }
 
                 if (ocrResult) {
@@ -1330,10 +1318,7 @@ async function handleDocPDF(input, targetId) {
             }
         }
 
-        // Cleanup Tesseract worker
-        if (tesseractWorker) {
-            await tesseractWorker.terminate();
-        }
+
 
         // Hide progress
         if (progressContainer) {
@@ -1432,20 +1417,6 @@ function healThaiText(text) {
         .replace(/\s+([\u0E30-\u0E39\u0E40-\u0E4C])/g, '$1');
 }
 
-/**
- * Lazy initializer for Tesseract worker
- */
-async function initTesseractWorker(existingWorker) {
-    if (existingWorker) return existingWorker;
-    updateOCRProgress(0, 'กำลังโหลด Tesseract OCR Engine...');
-    return await Tesseract.createWorker('tha+eng', 1, {
-        logger: (m) => {
-            if (m.status === 'recognizing text') {
-                updateOCRProgress(Math.round(m.progress * 100), 'กำลังอ่านข้อความ...');
-            }
-        }
-    });
-}
 
 /**
  * Check if extracted text is meaningful (real content, not just symbols)
@@ -1475,91 +1446,76 @@ function isMeaningfulText(text) {
 }
 
 /**
- * OCR a single PDF page using Gemini Vision API
+ * OCR a single PDF page using Typhoon OCR API (Thai-specialized)
  * @param {Object} page - pdf.js page object
- * @param {string} apiKey - Gemini API key
  * @param {number} pageNum - current page number
  * @param {number} totalPages - total pages
  * @returns {Promise<string>} OCR text result
  */
-async function ocrSinglePageGemini(page, apiKey, pageNum, totalPages) {
-    try {
-        updateOCRProgress(
-            Math.round(((pageNum - 1) / totalPages) * 100),
-            `หน้า ${pageNum}/${totalPages}: Gemini Vision OCR...`
-        );
+async function ocrSinglePageTyphoon(page, pageNum, totalPages) {
+    updateOCRProgress(
+        Math.round(((pageNum - 1) / totalPages) * 100),
+        `หน้า ${pageNum}/${totalPages}: Typhoon OCR...`
+    );
 
-        // Add a small delay between pages to avoid Rate Limit (429) on free tier
-        if (pageNum > 1) {
-            await new Promise(res => setTimeout(res, 3000)); 
-        }
-
-        const base64Url = await renderPageToImage(page, 300);
-        const base64Data = base64Url.split(',')[1];
-
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{
-                    parts: [
-                        { inlineData: { mimeType: 'image/jpeg', data: base64Data } },
-                        { text: 'อ่านข้อความภาษาไทยและอังกฤษทั้งหมดในภาพนี้อย่างละเอียด ห้ามข้ามคำ รักษาการขึ้นบรรทัดใหม่ตามต้นฉบับ\n\nคำแนะนำพิเศษสำหรับภาษาไทย:\n1. ห้ามแยกสระอำ (ำ) เป็น ํ และ า\n2. วางวรรณยุกต์และสระบน/ล่างให้ตรงตำแหน่งพยัญชนะ\n3. ส่งกลับเป็นข้อความ Plain Text เท่านั้น' }
-                    ]
-                }],
-                generationConfig: { temperature: 0.1, maxOutputTokens: 8192 }
-            })
-        });
-
-        const data = await response.json();
-        if (data.error) throw new Error(`Gemini API Error: ${data.error.message}`);
-
-        const result = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
-        if (!result) throw new Error('Gemini returned empty text');
-
-        return result;
-    } catch (e) {
-        throw e; // Let the handler decide whether to fallback
+    // Small delay between pages to avoid rate limiting
+    if (pageNum > 1) {
+        await new Promise(res => setTimeout(res, 1000));
     }
+
+    const base64Url = await renderPageToImage(page, 300);
+    const mimeType = 'image/jpeg';
+    const base64Data = base64Url.split(',')[1];
+
+    const response = await fetch(TYPHOON_API_URL, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${TYPHOON_API_KEY}`
+        },
+        body: JSON.stringify({
+            model: TYPHOON_MODEL,
+            messages: [{
+                role: 'user',
+                content: [
+                    { type: 'text', text: getTyphoonOcrPrompt() },
+                    { type: 'image_url', image_url: { url: `data:${mimeType};base64,${base64Data}` } }
+                ]
+            }],
+            max_tokens: 16384,
+            temperature: 0.1,
+            top_p: 0.6,
+            repetition_penalty: 1.1
+        })
+    });
+
+    if (!response.ok) {
+        const errorBody = await response.text();
+        throw new Error(`Typhoon OCR API error ${response.status}: ${errorBody}`);
+    }
+
+    const data = await response.json();
+    const result = data.choices?.[0]?.message?.content?.trim() || '';
+    if (!result) throw new Error('Typhoon OCR returned empty text');
+
+    return result;
 }
 
 /**
- * OCR a single PDF page using Tesseract.js (with preprocessing)
- * @param {Object} page - pdf.js page object
- * @param {Object} worker - Tesseract worker instance
- * @param {number} pageNum - current page number
- * @param {number} totalPages - total pages
- * @returns {Promise<string>} OCR text result
+ * Generate prompt for Typhoon OCR
+ * @returns {string} OCR prompt
  */
-async function ocrSinglePageTesseract(page, worker, pageNum, totalPages) {
-    try {
-        updateOCRProgress(
-            Math.round(((pageNum - 1) / totalPages) * 100),
-            `หน้า ${pageNum}/${totalPages}: Tesseract OCR...`
-        );
-
-        const rawImage = await renderPageToImage(page, 400);
-
-        // Check if image is too small for Tesseract
-        const tempImg = new Image();
-        const imgSizeOk = await new Promise(res => {
-            tempImg.onload = () => res(tempImg.width > 10 && tempImg.height > 10);
-            tempImg.src = rawImage;
-        });
-
-        if (!imgSizeOk) {
-            console.warn(`Page ${pageNum} image too small for Tesseract, skipping.`);
-            return '';
-        }
-
-        const processedImage = await preprocessForOCR(rawImage);
-        const { data: { text } } = await worker.recognize(processedImage);
-
-        return text?.trim() || '';
-    } catch (e) {
-        console.error(`Tesseract OCR failed on page ${pageNum}:`, e);
-        return '';
-    }
+function getTyphoonOcrPrompt() {
+    return `Extract all text from the image.
+Instructions:
+- Only return the clean text content.
+- Do not include any explanation or extra text.
+- You must include all information on the page.
+- Preserve line breaks and paragraph structure.
+Formatting Rules:
+- Tables: Render tables using plain text alignment.
+- Checkboxes: Use ☐ for unchecked and ☑️ for checked boxes.
+- Page Numbers: Include page numbers as-is.`;
 }
 
 // ==================== OCR ENGINES ====================
@@ -1583,79 +1539,6 @@ async function renderPageToImage(page, dpi = 300) {
     return canvas.toDataURL('image/jpeg', 0.95);
 }
 
-/**
- * Preprocess canvas image for better OCR (grayscale + contrast + binarize)
- * @param {string} base64DataUrl - image data URL
- * @returns {Promise<string>} preprocessed image data URL
- */
-async function preprocessForOCR(base64DataUrl) {
-    return new Promise((resolve) => {
-        const img = new Image();
-        img.onload = () => {
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            canvas.width = img.width;
-            canvas.height = img.height;
-
-            ctx.drawImage(img, 0, 0);
-
-            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const data = imageData.data;
-
-            // Step 1: Grayscale + Contrast enhancement
-            for (let i = 0; i < data.length; i += 4) {
-                // Weighted grayscale
-                let gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
-
-                // Increase contrast (factor 1.5)
-                gray = ((gray - 128) * 1.5) + 128;
-                gray = Math.max(0, Math.min(255, gray));
-
-                data[i] = data[i + 1] = data[i + 2] = gray;
-            }
-
-            // Step 2: Otsu's binarization
-            const histogram = new Array(256).fill(0);
-            for (let i = 0; i < data.length; i += 4) {
-                histogram[data[i]]++;
-            }
-
-            const totalPixels = data.length / 4;
-            let sum = 0;
-            for (let i = 0; i < 256; i++) sum += i * histogram[i];
-
-            let sumB = 0, wB = 0, wF = 0;
-            let maxVariance = 0, threshold = 128;
-
-            for (let t = 0; t < 256; t++) {
-                wB += histogram[t];
-                if (wB === 0) continue;
-                wF = totalPixels - wB;
-                if (wF === 0) break;
-
-                sumB += t * histogram[t];
-                const mB = sumB / wB;
-                const mF = (sum - sumB) / wF;
-                const variance = wB * wF * (mB - mF) * (mB - mF);
-
-                if (variance > maxVariance) {
-                    maxVariance = variance;
-                    threshold = t;
-                }
-            }
-
-            // Apply threshold
-            for (let i = 0; i < data.length; i += 4) {
-                const val = data[i] > threshold ? 255 : 0;
-                data[i] = data[i + 1] = data[i + 2] = val;
-            }
-
-            ctx.putImageData(imageData, 0, 0);
-            resolve(canvas.toDataURL('image/png'));
-        };
-        img.src = base64DataUrl;
-    });
-}
 
 
 /**
@@ -1672,67 +1555,14 @@ function updateOCRProgress(percent, text) {
     if (txt) txt.textContent = text;
 }
 
-// ==================== OCR API KEY MANAGEMENT ====================
+// ==================== TYPHOON OCR STATUS ====================
 
 /**
- * Handle OCR Gemini API key input — sync to localStorage and update both UIs
- * @param {string} value - API key value
- */
-function handleOCRKeyInput(value) {
-    localStorage.setItem('gemini_api_key', value);
-
-    // Sync with the other Gemini input (in AI Analysis section)
-    const otherInput = document.getElementById('gemini-api-key');
-    if (otherInput) otherInput.value = value;
-
-    updateGeminiUI();
-    updateOCRModeLabel();
-
-    // Show status feedback
-    const statusEl = document.getElementById('ocr-key-status');
-    if (statusEl) {
-        if (value.trim()) {
-            statusEl.style.display = 'block';
-            statusEl.style.background = 'rgba(16,185,129,0.1)';
-            statusEl.style.color = '#10b981';
-            statusEl.textContent = '✅ Gemini Vision OCR พร้อมใช้งาน — อัปโหลด PDF สแกนได้เลย';
-        } else {
-            statusEl.style.display = 'block';
-            statusEl.style.background = 'rgba(234,179,8,0.1)';
-            statusEl.style.color = '#eab308';
-            statusEl.textContent = '⚠️ ไม่มี API Key — จะใช้ Tesseract OCR (ความแม่นยำต่ำกว่า)';
-            setTimeout(() => { statusEl.style.display = 'none'; }, 3000);
-        }
-    }
-}
-
-/**
- * Toggle OCR API key visibility (password/text)
- */
-function toggleOCRKeyVisibility() {
-    const input = document.getElementById('ocr-gemini-key');
-    const btn = document.getElementById('ocr-key-toggle');
-    if (!input) return;
-    if (input.type === 'password') {
-        input.type = 'text';
-        if (btn) btn.textContent = '🙈';
-    } else {
-        input.type = 'password';
-        if (btn) btn.textContent = '👁️';
-    }
-}
-
-/**
- * Update OCR mode label based on whether Gemini API key exists
+ * Update OCR mode label to show Typhoon status
  */
 function updateOCRModeLabel() {
     const label = document.getElementById('ocr-mode-label');
-    const key = localStorage.getItem('gemini_api_key');
     if (label) {
-        if (key && key.trim()) {
-            label.innerHTML = 'โหมด: <strong style="color:#a855f7;">Gemini Vision AI</strong> (แม่นยำสูง)';
-        } else {
-            label.innerHTML = 'โหมด: <span style="color:#eab308;">Tesseract</span> (พื้นฐาน) — ใส่ API Key เพื่ออัปเกรด';
-        }
+        label.innerHTML = 'โหมด: <strong style="color:#06b6d4;">Typhoon OCR</strong> (เชี่ยวชาญภาษาไทย)';
     }
 }
