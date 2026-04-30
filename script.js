@@ -1589,60 +1589,35 @@ async function ocrImageBase64Typhoon(base64Data, mimeType = 'image/jpeg') {
 function cleanTyphoonOcrOutput(text) {
     if (!text) return '';
 
-    // Known prompt markers that Typhoon OCR echoes
-    const promptMarker = 'Extract all text from the image';
-    const idx = text.indexOf(promptMarker);
+    let cleaned = text;
 
-    if (idx < 0) return stripSignatureDescriptions(text); // No prompt found — just strip signatures
-
-    // Get content BEFORE the prompt echo
-    const beforePrompt = text.substring(0, idx).trim();
-
-    // Try to find content AFTER the prompt block ends
-    // The prompt block typically ends after "Checkboxes: Use ☐ for unchecked and ☑️ for checked boxes."
-    const afterPromptPatterns = [
-        /[Cc]heckboxes?:.*?(?:checked|unchecked).*?boxes\.?\s*/,
-        /Page\s*Numbers?:.*?as[- ]is\.?\s*/,
-        /Formatting\s*Rules:[\s\S]*?(?:boxes\.?\s*)/
+    // 1. Remove known Typhoon English prompt leakage line by line
+    const promptLeakRegexes = [
+        /^Extract all text from the image\.?\s*$/gim,
+        /^Instructions:\s*$/gim,
+        /^- Only return the clean text content\.?\s*$/gim,
+        /^- Do not include any explanation or extra text\.?\s*$/gim,
+        /^- You must include all information on the page\.?\s*$/gim,
+        /^- Preserve line breaks and paragraph structure\.?\s*$/gim,
+        /^Formatting Rules:\s*$/gim,
+        /^- Tables: Render tables using plain text alignment\.?\s*$/gim,
+        /^- Checkboxes:.*?(checked|unchecked).*$/gim,
+        /^- Page Numbers: Include page numbers as-is\.?\s*$/gim
     ];
 
-    let afterPrompt = '';
-    const promptSection = text.substring(idx);
-    for (const pattern of afterPromptPatterns) {
-        const match = promptSection.match(pattern);
-        if (match) {
-            const endIdx = match.index + match[0].length;
-            afterPrompt = promptSection.substring(endIdx).trim();
-            break;
-        }
+    for (const regex of promptLeakRegexes) {
+        cleaned = cleaned.replace(regex, '');
     }
 
-    // If no known end-pattern matched, try to cut after last closing tag or known ending
-    if (!afterPrompt) {
-        const figureEnd = promptSection.lastIndexOf('</figure>');
-        if (figureEnd > -1) {
-            afterPrompt = promptSection.substring(figureEnd + '</figure>'.length).trim();
-        }
-        const pageNumEnd = promptSection.lastIndexOf('</page_number>');
-        if (pageNumEnd > figureEnd) {
-            // Find next line after the page_number pattern
-            const rest = promptSection.substring(pageNumEnd);
-            const lineBreak = rest.indexOf('\n');
-            if (lineBreak > -1) {
-                afterPrompt = rest.substring(lineBreak).trim();
-            }
-        }
-    }
+    // 2. Remove XML tags that model sometimes wraps around output
+    cleaned = cleaned.replace(/<\/?figure>/gi, '');
+    cleaned = cleaned.replace(/<\/?page_number>/gi, '');
 
-    // Combine what we found
-    if (beforePrompt && afterPrompt) {
-        cleaned = beforePrompt + '\n' + afterPrompt;
-    } else {
-        cleaned = beforePrompt || afterPrompt || text;
-    }
-
-    // Strip signature/stamp descriptions that Typhoon OCR may include
+    // 3. Strip signature/stamp descriptions
     cleaned = stripSignatureDescriptions(cleaned);
+
+    // 4. Clean up leftover empty lines
+    cleaned = cleaned.replace(/\n{3,}/g, '\n\n').trim();
 
     return cleaned;
 }
