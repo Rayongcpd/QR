@@ -1591,32 +1591,55 @@ function cleanTyphoonOcrOutput(text) {
 
     let cleaned = text;
 
-    // 1. Remove known Typhoon English prompt leakage line by line
-    const promptLeakRegexes = [
+    // 1. Remove Typhoon's INTERNAL English system prompt leakage
+    const internalPromptRegexes = [
         /^Extract all text from the image\.?\s*$/gim,
         /^Instructions:\s*$/gim,
-        /^- Only return the clean text content\.?\s*$/gim,
+        /^- Only return the clean (?:text content|Markdown)\.?\s*$/gim,
         /^- Do not include any explanation or extra text\.?\s*$/gim,
         /^- You must include all information on the page\.?\s*$/gim,
         /^- Preserve line breaks and paragraph structure\.?\s*$/gim,
         /^Formatting Rules:\s*$/gim,
-        /^- Tables: Render tables using plain text alignment\.?\s*$/gim,
-        /^- Checkboxes:.*?(checked|unchecked).*$/gim,
-        /^- Page Numbers: Include page numbers as-is\.?\s*$/gim
+        /^- Tables:.*?(?:alignment|HTML format)\.?\s*$/gim,
+        /^- Checkboxes:.*?(?:checked|unchecked).*$/gim,
+        /^- Page Numbers:.*?(?:as-is|wrap page).*$/gim,
+        /^- Equations:.*?(?:LaTeX|inline|block).*$/gim,
+        /^- Images\/Charts\/Diagrams:.*$/gim,
+        /^Describe the image'?s main elements.*$/gim,
+        /^.*(?:contextual clues|financial charts|concise overall summary).*Describe in Thai\.?\s*$/gim,
+        /^.*(?:people, objects, text).*(?:place, event, culture).*$/gim,
+        /^.*(?:provide deeper analysis|comment on style or architecture).*$/gim,
     ];
 
-    for (const regex of promptLeakRegexes) {
+    for (const regex of internalPromptRegexes) {
         cleaned = cleaned.replace(regex, '');
     }
 
-    // 2. Remove XML tags that model sometimes wraps around output
+    // 2. Remove OUR Thai prompt that got echoed back
+    const ourPromptRegexes = [
+        /^อ่านข้อความทั้งหมดในภาพนี้อย่างละเอียด\s*$/gm,
+        /^กฎ:\s*$/gm,
+        /^- ส่งกลับเฉพาะข้อความที่(?:อ่านได้จากภาพ|พิมพ์อยู่ในเอกสาร)เท่านั้น\s*$/gm,
+        /^- ห้ามใส่คำอธิบายเพิ่มเติม.*(?:prompt|คำแนะนำ).*$/gm,
+        /^- ข้ามลายเซ็น.*(?:ตรายาง|เครื่องหมาย).*$/gm,
+        /^- รักษาการขึ้นบรรทัดใหม่ตามต้นฉบับ\s*$/gm,
+        /^- ตาราง:.*รูปแบบข้อความธรรมดา\s*$/gm,
+        /^- ห้ามแยกสระอำ.*$/gm,
+    ];
+
+    for (const regex of ourPromptRegexes) {
+        cleaned = cleaned.replace(regex, '');
+    }
+
+    // 3. Remove XML/HTML tags the model wraps around output
     cleaned = cleaned.replace(/<\/?figure>/gi, '');
     cleaned = cleaned.replace(/<\/?page_number>/gi, '');
+    cleaned = cleaned.replace(/<\/?table>/gi, '');
 
-    // 3. Strip signature/stamp descriptions
+    // 4. Strip signature/stamp descriptions
     cleaned = stripSignatureDescriptions(cleaned);
 
-    // 4. Clean up leftover empty lines
+    // 5. Clean up leftover empty lines
     cleaned = cleaned.replace(/\n{3,}/g, '\n\n').trim();
 
     return cleaned;
