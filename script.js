@@ -1737,18 +1737,16 @@ function stripSignatureDescriptions(text) {
     if (!text) return '';
 
     return text
-        // Remove lines describing signatures (Thai + English patterns)
-        .replace(/^.*(?:ลายเซ็น|ลายมือชื่อ|ลงนาม|ลงชื่อ|เซ็นชื่อ|เซ็นกำกับ|ลายเซ็นต์).*$/gm, '')
-        .replace(/^.*(?:signature|signed|sign here).*$/gim, '')
-        // Remove lines describing stamps/seals
-        .replace(/^.*(?:ตราประทับ|ตราสำคัญ|ประทับตรา|ตราครุฑ|ตรายาง).*$/gm, '')
-        .replace(/^.*(?:stamp|seal|official seal).*$/gim, '')
-        // Remove figure/image descriptions of signatures
-        .replace(/<figure>[\s\S]*?(?:ลายเซ็น|signature|ตราประทับ|stamp|seal)[\s\S]*?<\/figure>/gi, '')
-        // Remove [ลายเซ็น] style brackets
-        .replace(/\[.*?(?:ลายเซ็น|ลายมือชื่อ|signature|ตราประทับ).*?\]/gi, '')
+        // Remove [ลายเซ็น] style brackets (often used by VLM to describe images)
+        .replace(/\[.*?(?:ลายเซ็น|ลายมือชื่อ|ลงนาม|ลงชื่อ|signature|ตราประทับ|ตรายาง|ตราครุฑ|stamp|seal).*?\]/gi, '')
         // Remove (ลายเซ็น) style parentheses
-        .replace(/\(.*?(?:ลายเซ็น|ลายมือชื่อ|signature|ตราประทับ).*?\)/gi, '')
+        .replace(/\(.*?(?:ลายเซ็น|ลายมือชื่อ|ลงนาม|ลงชื่อ|signature|ตราประทับ|ตรายาง|ตราครุฑ|stamp|seal).*?\)/gi, '')
+        // Remove <figure> tags containing signature/stamp descriptions
+        .replace(/<figure>[\s\S]*?(?:ลายเซ็น|ลายมือชื่อ|ลงนาม|ลงชื่อ|signature|ตราประทับ|ตรายาง|ตราครุฑ|stamp|seal)[\s\S]*?<\/figure>/gi, '')
+        // Remove actual signature placeholders like "ลงชื่อ......................." or "ลายมือชื่อ _________________"
+        .replace(/(?:ลงชื่อ|ลงนาม|ลายมือชื่อ|ลายเซ็น|ผู้รับมอบอำนาจ)[\s]*[\._\-]{3,}.*$/gm, '')
+        // Remove lines that ONLY contain signature/stamp words and nothing else (with optional spaces)
+        .replace(/^\s*(?:ลายเซ็น|ลายมือชื่อ|ลงนาม|ลงชื่อ|เซ็นชื่อ|เซ็นกำกับ|ลายเซ็นต์|ตราประทับ|ตราสำคัญ|ประทับตรา|ตราครุฑ|ตรายาง|signature|signed|stamp|seal)\s*$/gim, '')
         // Clean up multiple blank lines left behind
         .replace(/\n{3,}/g, '\n\n')
         .trim();
