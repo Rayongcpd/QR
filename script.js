@@ -1281,8 +1281,8 @@ function closeOcrScanner() {
 }
 
 async function handleOcrScannerUpload(input) {
-    const file = input.files[0];
-    if (!file) return;
+    const files = Array.from(input.files);
+    if (!files.length) return;
 
     document.getElementById('ocr-scanner-upload-area').style.display = 'none';
     
@@ -1292,47 +1292,12 @@ async function handleOcrScannerUpload(input) {
     
     progress.style.display = 'block';
     progressText.textContent = 'กำลังเตรียมไฟล์...';
+    progressText.style.color = '#06b6d4';
+    progressBar.style.background = 'linear-gradient(90deg,#0891b2,#06b6d4)';
     progressBar.style.width = '10%';
 
     try {
-        if (file.type === 'application/pdf') {
-            const arrayBuffer = await file.arrayBuffer();
-            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-            
-            for (let i = 1; i <= pdf.numPages; i++) {
-                progressText.textContent = `กำลังแตกไฟล์หน้า ${i}/${pdf.numPages}...`;
-                progressBar.style.width = Math.round((i / pdf.numPages) * 100) + '%';
-                
-                const page = await pdf.getPage(i);
-                let textContent = extractTextFromPage(await page.getTextContent());
-                
-                const base64Url = await renderPageToImage(page, 300);
-                const base64Data = base64Url.split(',')[1];
-                
-                ocrScannedPages.push({
-                    id: 'page-' + i,
-                    pageNum: i,
-                    base64Data: base64Data,
-                    mimeType: 'image/jpeg',
-                    text: isMeaningfulText(textContent) ? textContent : '', 
-                    status: isMeaningfulText(textContent) ? 'done' : 'pending' 
-                });
-            }
-        } else if (file.type.startsWith('image/')) {
-            progressBar.style.width = '50%';
-            progressText.textContent = `กำลังอ่านรูปภาพ...`;
-            const base64Url = await fileToBase64(file);
-            const base64Data = base64Url.split(',')[1];
-            
-            ocrScannedPages.push({
-                id: 'page-1',
-                pageNum: 1,
-                base64Data: base64Data,
-                mimeType: file.type,
-                text: '',
-                status: 'pending'
-            });
-        }
+        await processFilesForScanner(files, progressText, progressBar);
 
         progressText.textContent = 'เตรียมไฟล์สำเร็จ';
         progressBar.style.width = '100%';
@@ -1347,6 +1312,104 @@ async function handleOcrScannerUpload(input) {
         progressText.textContent = 'เกิดข้อผิดพลาด: ' + e.message;
         progressText.style.color = '#ef4444';
         progressBar.style.background = '#ef4444';
+    }
+
+    // Reset input so same files can be re-selected
+    input.value = '';
+}
+
+function addMoreFiles() {
+    document.getElementById('ocr-scanner-file-add').click();
+}
+
+async function handleOcrScannerAddMore(input) {
+    const files = Array.from(input.files);
+    if (!files.length) return;
+
+    const progress = document.getElementById('ocr-scanner-global-progress');
+    const progressText = document.getElementById('ocr-scanner-global-text');
+    const progressBar = document.getElementById('ocr-scanner-global-bar');
+    
+    progress.style.display = 'block';
+    progressText.textContent = 'กำลังเพิ่มไฟล์...';
+    progressText.style.color = '#06b6d4';
+    progressBar.style.background = 'linear-gradient(90deg,#0891b2,#06b6d4)';
+    progressBar.style.width = '10%';
+
+    try {
+        await processFilesForScanner(files, progressText, progressBar);
+
+        progressText.textContent = 'เพิ่มไฟล์สำเร็จ';
+        progressBar.style.width = '100%';
+        setTimeout(() => {
+            progress.style.display = 'none';
+            renderScannerPages();
+            scanAllPendingPages();
+        }, 500);
+
+    } catch (e) {
+        progressText.textContent = 'เกิดข้อผิดพลาด: ' + e.message;
+        progressText.style.color = '#ef4444';
+    }
+
+    input.value = '';
+}
+
+/**
+ * Process multiple files and add them to ocrScannedPages
+ * @param {File[]} files - array of File objects
+ * @param {HTMLElement} progressText - progress text element
+ * @param {HTMLElement} progressBar - progress bar element
+ */
+async function processFilesForScanner(files, progressText, progressBar) {
+    let totalSteps = files.length;
+    let currentStep = 0;
+
+    for (const file of files) {
+        currentStep++;
+
+        if (file.type === 'application/pdf') {
+            progressText.textContent = `กำลังแตก PDF (${currentStep}/${totalSteps})...`;
+            const arrayBuffer = await file.arrayBuffer();
+            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+            
+            for (let i = 1; i <= pdf.numPages; i++) {
+                progressText.textContent = `PDF ${currentStep}/${totalSteps} — หน้า ${i}/${pdf.numPages}`;
+                progressBar.style.width = Math.round((currentStep / totalSteps) * 100) + '%';
+                
+                const page = await pdf.getPage(i);
+                let textContent = extractTextFromPage(await page.getTextContent());
+                
+                const base64Url = await renderPageToImage(page, 300);
+                const base64Data = base64Url.split(',')[1];
+                
+                const pageNum = ocrScannedPages.length + 1;
+                ocrScannedPages.push({
+                    id: 'page-' + pageNum,
+                    pageNum: pageNum,
+                    base64Data: base64Data,
+                    mimeType: 'image/jpeg',
+                    text: isMeaningfulText(textContent) ? textContent : '', 
+                    status: isMeaningfulText(textContent) ? 'done' : 'pending' 
+                });
+            }
+        } else if (file.type.startsWith('image/')) {
+            progressText.textContent = `กำลังอ่านรูปภาพ (${currentStep}/${totalSteps})...`;
+            progressBar.style.width = Math.round((currentStep / totalSteps) * 100) + '%';
+            
+            const base64Url = await fileToBase64(file);
+            const base64Data = base64Url.split(',')[1];
+            
+            const pageNum = ocrScannedPages.length + 1;
+            ocrScannedPages.push({
+                id: 'page-' + pageNum,
+                pageNum: pageNum,
+                base64Data: base64Data,
+                mimeType: file.type,
+                text: '',
+                status: 'pending'
+            });
+        }
     }
 }
 
@@ -1416,14 +1479,22 @@ async function rescanScannerPage(index) {
 
     try {
         const result = await ocrImageBase64Typhoon(page.base64Data, page.mimeType);
-        page.text = healThaiText(result);
-        page.status = 'done';
+        if (result) {
+            page.text = healThaiText(result);
+            page.status = 'done';
+        } else {
+            page.text = '';
+            page.status = 'done';
+            console.warn(`Page ${page.pageNum}: OCR returned no usable text after cleaning`);
+        }
     } catch (e) {
         console.error(`OCR Error on page ${page.pageNum}:`, e);
         page.text = `[เกิดข้อผิดพลาด: ${e.message}]`;
         page.status = 'error';
     }
     
+    // Small delay between pages to avoid rate limiting
+    await new Promise(r => setTimeout(r, 800));
     renderScannerPages(); 
 }
 
@@ -1543,7 +1614,11 @@ function isMeaningfulText(text) {
  * @param {string} mimeType - image mime type
  * @returns {Promise<string>} OCR text result
  */
-async function ocrImageBase64Typhoon(base64Data, mimeType = 'image/jpeg') {
+async function ocrImageBase64Typhoon(base64Data, mimeType = 'image/jpeg', retryCount = 0) {
+    const MAX_RETRIES = 2;
+    // Increase temperature on retries to get different output
+    const temperature = retryCount === 0 ? 0.1 : 0.3 + (retryCount * 0.1);
+
     const response = await fetch(TYPHOON_API_URL, {
         method: 'POST',
         headers: {
@@ -1560,7 +1635,7 @@ async function ocrImageBase64Typhoon(base64Data, mimeType = 'image/jpeg') {
                 ]
             }],
             max_tokens: 16384,
-            temperature: 0.1,
+            temperature: temperature,
             top_p: 0.6,
             repetition_penalty: 1.1
         })
@@ -1574,9 +1649,16 @@ async function ocrImageBase64Typhoon(base64Data, mimeType = 'image/jpeg') {
     const data = await response.json();
     const rawResult = data.choices?.[0]?.message?.content?.trim() || '';
     const result = cleanTyphoonOcrOutput(rawResult);
-    if (!result) throw new Error('Typhoon OCR returned empty text');
 
-    return result;
+    // If cleaned result is empty but raw wasn't, the model only returned prompt text
+    // Retry with higher temperature to get different output
+    if (!result && rawResult && retryCount < MAX_RETRIES) {
+        console.warn(`Typhoon OCR attempt ${retryCount + 1}: only prompt text returned, retrying...`);
+        await new Promise(r => setTimeout(r, 1500));
+        return ocrImageBase64Typhoon(base64Data, mimeType, retryCount + 1);
+    }
+
+    return result || '';
 }
 
 /**
