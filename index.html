@@ -779,22 +779,24 @@
                         </button>
                     </div>
 
+                    <div style="display:flex;justify-content:center;margin-bottom:24px;">
+                        <button onclick="openOcrScanner()" style="padding:14px 28px;border-radius:14px;background:linear-gradient(135deg,#06b6d4,#0891b2);color:#fff;font-weight:700;font-size:15px;border:none;cursor:pointer;transition:all 0.2s;box-shadow:0 4px 16px rgba(6,182,212,0.3);display:flex;align-items:center;gap:10px;">
+                            <span style="font-size:20px;">📸</span> นำเข้าเอกสารด้วย OCR (PDF / รูปภาพ)
+                        </button>
+                    </div>
+
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8" id="dg-textareas-grid">
                         <div id="dg-original-panel">
                             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
                                 <p class="field-label" style="margin-bottom:0;">เอกสารต้นฉบับ (Original)</p>
-                                <button onclick="document.getElementById('dg-pdf-1').click()" class="type-badge" style="padding:4px 10px; font-size:11px;">📄 อัปโหลด PDF</button>
-                                <input type="file" id="dg-pdf-1" hidden accept=".pdf" onchange="handleDocPDF(this, 'dg-text-1')">
                             </div>
-                            <textarea id="dg-text-1" class="doc-textarea" placeholder="วางข้อความที่นี่ หรืออัปโหลดไฟล์ PDF..."></textarea>
+                            <textarea id="dg-text-1" class="doc-textarea" placeholder="วางข้อความที่นี่ หรือนำเข้าด้วยการสแกนเอกสาร..."></textarea>
                         </div>
                         <div>
                             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
                                 <p class="field-label" style="margin-bottom:0;" id="dg-text-2-label">เอกสารฉบับแก้ไข (Revised)</p>
-                                <button onclick="document.getElementById('dg-pdf-2').click()" class="type-badge" style="padding:4px 10px; font-size:11px;">📄 อัปโหลด PDF</button>
-                                <input type="file" id="dg-pdf-2" hidden accept=".pdf" onchange="handleDocPDF(this, 'dg-text-2')">
                             </div>
-                            <textarea id="dg-text-2" class="doc-textarea" placeholder="วางข้อความที่นี่ หรืออัปโหลดไฟล์ PDF..."></textarea>
+                            <textarea id="dg-text-2" class="doc-textarea" placeholder="วางข้อความที่นี่ หรือนำเข้าด้วยการสแกนเอกสาร..."></textarea>
                         </div>
                     </div>
 
@@ -1013,6 +1015,54 @@
                 </div>
             </section>
 
+        </div>
+    </div>
+
+    <!-- OCR Scanner Modal -->
+    <div id="ocr-scanner-modal" style="display:none; position:fixed; inset:0; z-index:100; background:rgba(2,6,23,0.8); backdrop-filter:blur(8px); padding:20px; align-items:center; justify-content:center;">
+        <div style="background:rgba(15,23,42,0.95); border:1px solid rgba(255,255,255,0.1); border-radius:24px; width:100%; max-width:1000px; height:90vh; display:flex; flex-direction:column; box-shadow:0 24px 48px rgba(0,0,0,0.5); overflow:hidden;">
+            <!-- Header -->
+            <div style="padding:20px 24px; border-bottom:1px solid rgba(255,255,255,0.05); display:flex; justify-content:space-between; align-items:center; flex-shrink:0;">
+                <h3 style="font-size:18px; font-weight:700; color:#fff; display:flex; align-items:center; gap:10px;"><span style="font-size:24px;">🔍</span> ตรวจสอบข้อความก่อนนำเข้า (OCR Scanner)</h3>
+                <button onclick="closeOcrScanner()" style="background:none; border:none; color:#64748b; font-size:24px; cursor:pointer;">&times;</button>
+            </div>
+
+            <!-- Content -->
+            <div style="flex:1; overflow-y:auto; padding:24px; display:flex; flex-direction:column; gap:20px;" id="ocr-scanner-body">
+                <!-- Upload Area -->
+                <div id="ocr-scanner-upload-area" style="border:2px dashed rgba(6,182,212,0.3); border-radius:16px; padding:40px 20px; text-align:center; background:rgba(6,182,212,0.05); cursor:pointer;" onclick="document.getElementById('ocr-scanner-file').click()">
+                    <div style="font-size:32px; margin-bottom:12px;">📄</div>
+                    <h4 style="font-size:16px; font-weight:600; color:#e2e8f0; margin-bottom:8px;">อัปโหลดไฟล์ PDF หรือ รูปภาพ (JPG, PNG)</h4>
+                    <p style="font-size:13px; color:#64748b;">คลิกเพื่อเลือกไฟล์ระบบจะสแกนข้อความอัตโนมัติ</p>
+                    <input type="file" id="ocr-scanner-file" hidden accept=".pdf,image/jpeg,image/png,image/webp" onchange="handleOcrScannerUpload(this)">
+                </div>
+
+                <!-- Global Progress -->
+                <div id="ocr-scanner-global-progress" style="display:none; text-align:center; padding:20px 0;">
+                    <div class="ai-loader-pulse" style="margin:0 auto 12px auto;"></div>
+                    <p id="ocr-scanner-global-text" style="color:#06b6d4; font-size:14px; font-weight:600; margin-bottom:12px;">กำลังแตกไฟล์ PDF...</p>
+                    <div style="height:6px; background:#0f172a; border-radius:999px; overflow:hidden; max-width:300px; margin:0 auto;">
+                        <div id="ocr-scanner-global-bar" style="height:100%; width:0%; background:linear-gradient(90deg,#0891b2,#06b6d4); transition:width 0.3s;"></div>
+                    </div>
+                </div>
+
+                <!-- Pages List -->
+                <div id="ocr-scanner-pages" style="display:flex; flex-direction:column; gap:24px;">
+                    <!-- Dynamically populated -->
+                </div>
+            </div>
+
+            <!-- Footer Actions -->
+            <div id="ocr-scanner-footer" style="display:none; padding:20px 24px; border-top:1px solid rgba(255,255,255,0.05); background:rgba(2,6,23,0.5); flex-shrink:0;">
+                <div style="display:flex; gap:12px; justify-content:flex-end;">
+                    <button onclick="insertOcrToTarget('original')" style="padding:12px 24px; border-radius:12px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:#fff; font-weight:600; cursor:pointer; transition:all 0.2s;">
+                        📥 นำเข้าเป็น "ต้นฉบับ"
+                    </button>
+                    <button onclick="insertOcrToTarget('revised')" style="padding:12px 24px; border-radius:12px; background:linear-gradient(135deg,#06b6d4,#0891b2); border:none; color:#fff; font-weight:700; cursor:pointer; transition:all 0.2s;">
+                        📥 นำเข้าเป็น "ฉบับแก้ไข"
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
 
