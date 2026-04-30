@@ -1495,10 +1495,106 @@ async function ocrSinglePageTyphoon(page, pageNum, totalPages) {
     }
 
     const data = await response.json();
-    const result = data.choices?.[0]?.message?.content?.trim() || '';
+    const rawResult = data.choices?.[0]?.message?.content?.trim() || '';
+    const result = cleanTyphoonOcrOutput(rawResult);
     if (!result) throw new Error('Typhoon OCR returned empty text');
 
     return result;
+}
+
+/**
+ * Clean Typhoon OCR output by stripping the model's echoed prompt template.
+ * The Typhoon OCR model sometimes includes its internal prompt instructions
+ * (e.g., "Extract all text from the image...") alongside the actual content.
+ * @param {string} text - raw OCR result
+ * @returns {string} cleaned text
+ */
+function cleanTyphoonOcrOutput(text) {
+    if (!text) return '';
+
+    // Known prompt markers that Typhoon OCR echoes
+    const promptMarker = 'Extract all text from the image';
+    const idx = text.indexOf(promptMarker);
+
+    if (idx < 0) return stripSignatureDescriptions(text); // No prompt found — just strip signatures
+
+    // Get content BEFORE the prompt echo
+    const beforePrompt = text.substring(0, idx).trim();
+
+    // Try to find content AFTER the prompt block ends
+    // The prompt block typically ends after "Checkboxes: Use ☐ for unchecked and ☑️ for checked boxes."
+    const afterPromptPatterns = [
+        /[Cc]heckboxes?:.*?(?:checked|unchecked).*?boxes\.?\s*/,
+        /Page\s*Numbers?:.*?as[- ]is\.?\s*/,
+        /Formatting\s*Rules:[\s\S]*?(?:boxes\.?\s*)/
+    ];
+
+    let afterPrompt = '';
+    const promptSection = text.substring(idx);
+    for (const pattern of afterPromptPatterns) {
+        const match = promptSection.match(pattern);
+        if (match) {
+            const endIdx = match.index + match[0].length;
+            afterPrompt = promptSection.substring(endIdx).trim();
+            break;
+        }
+    }
+
+    // If no known end-pattern matched, try to cut after last closing tag or known ending
+    if (!afterPrompt) {
+        const figureEnd = promptSection.lastIndexOf('</figure>');
+        if (figureEnd > -1) {
+            afterPrompt = promptSection.substring(figureEnd + '</figure>'.length).trim();
+        }
+        const pageNumEnd = promptSection.lastIndexOf('</page_number>');
+        if (pageNumEnd > figureEnd) {
+            // Find next line after the page_number pattern
+            const rest = promptSection.substring(pageNumEnd);
+            const lineBreak = rest.indexOf('\n');
+            if (lineBreak > -1) {
+                afterPrompt = rest.substring(lineBreak).trim();
+            }
+        }
+    }
+
+    // Combine what we found
+    if (beforePrompt && afterPrompt) {
+        cleaned = beforePrompt + '\n' + afterPrompt;
+    } else {
+        cleaned = beforePrompt || afterPrompt || text;
+    }
+
+    // Strip signature/stamp descriptions that Typhoon OCR may include
+    cleaned = stripSignatureDescriptions(cleaned);
+
+    return cleaned;
+}
+
+/**
+ * Strip signature, stamp, and seal descriptions from OCR output.
+ * Typhoon OCR often describes visual elements like signatures as text.
+ * @param {string} text - OCR text
+ * @returns {string} cleaned text
+ */
+function stripSignatureDescriptions(text) {
+    if (!text) return '';
+
+    return text
+        // Remove lines describing signatures (Thai + English patterns)
+        .replace(/^.*(?:ลายเซ็น|ลายมือชื่อ|ลงนาม|ลงชื่อ|เซ็นชื่อ|เซ็นกำกับ|ลายเซ็นต์).*$/gm, '')
+        .replace(/^.*(?:signature|signed|sign here).*$/gim, '')
+        // Remove lines describing stamps/seals
+        .replace(/^.*(?:ตราประทับ|ตราสำคัญ|ประทับตรา|ตราครุฑ|ตรายาง).*$/gm, '')
+        .replace(/^.*(?:stamp|seal|official seal).*$/gim, '')
+        // Remove figure/image descriptions of signatures
+        .replace(/<figure>[\s\S]*?(?:ลายเซ็น|signature|ตราประทับ|stamp|seal)[\s\S]*?<\/figure>/gi, '')
+        // Remove [ลายเซ็น] style brackets
+        .replace(/\[.*?(?:ลายเซ็น|ลายมือชื่อ|signature|ตราประทับ).*?\]/gi, '')
+        // Remove (ลายเซ็น) style parentheses
+        .replace(/\(.*?(?:ลายเซ็น|ลายมือชื่อ|signature|ตราประทับ).*?\)/gi, '')
+        // Clean up multiple blank lines left behind
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
 }
 
 /**
@@ -1506,16 +1602,14 @@ async function ocrSinglePageTyphoon(page, pageNum, totalPages) {
  * @returns {string} OCR prompt
  */
 function getTyphoonOcrPrompt() {
-    return `Extract all text from the image.
-Instructions:
-- Only return the clean text content.
-- Do not include any explanation or extra text.
-- You must include all information on the page.
-- Preserve line breaks and paragraph structure.
-Formatting Rules:
-- Tables: Render tables using plain text alignment.
-- Checkboxes: Use ☐ for unchecked and ☑️ for checked boxes.
-- Page Numbers: Include page numbers as-is.`;
+    return `อ่านข้อความทั้งหมดในภาพนี้อย่างละเอียด
+กฎ:
+- ส่งกลับเฉพาะข้อความที่พิมพ์อยู่ในเอกสารเท่านั้น
+- ห้ามใส่คำอธิบายเพิ่มเติม ห้ามใส่คำแนะนำ ห้ามใส่ prompt
+- ข้ามลายเซ็น ลายมือชื่อ ตราประทับ ตรายาง และเครื่องหมายที่เขียนด้วยมือทั้งหมด ห้ามอธิบายลายเซ็น
+- รักษาการขึ้นบรรทัดใหม่ตามต้นฉบับ
+- ตาราง: ใช้รูปแบบข้อความธรรมดา
+- ห้ามแยกสระอำ (ำ) เป็น ํ + า`;
 }
 
 // ==================== OCR ENGINES ====================
