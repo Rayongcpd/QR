@@ -272,22 +272,6 @@ input:focus, textarea:focus {
     color: #e2e8f0;
 }
 
-/* Equal rows: aligned side-by-side, easy to read */
-.diff-row-equal .diff-cell-left,
-.diff-row-equal .diff-cell-right {
-    background: transparent;
-    color: #e2e8f0;
-}
-
-.diff-row-equal .diff-cell-left {
-    border-right: 1px solid rgba(255, 255, 255, 0.07);
-    color: #94a3b8;
-}
-
-.diff-cell-full {
-    display: none;
-}
-
 /* Row background tints */
 .diff-row-equal {
     background: transparent;
