@@ -272,6 +272,14 @@ input:focus, textarea:focus {
     color: #e2e8f0;
 }
 
+/* Equal rows: seamless side-by-side */
+.diff-row-equal .diff-cell-left,
+.diff-row-equal .diff-cell-right {
+    border: none;
+    background: transparent;
+    color: #64748b;
+}
+
 /* Row background tints */
 .diff-row-equal {
     background: transparent;
