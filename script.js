@@ -728,123 +728,104 @@ function handleAnalyzeOnly() {
 
 /**
  * Compute line-level diff between two texts.
- * Normalizes soft-wrapped lines then uses diff_match_patch for accurate alignment.
+ * Uses diff_match_patch then fuzzy-matches delete/insert blocks
+ * so lines with similar words appear on the same row.
  * Returns array of { type: 'equal'|'delete'|'insert'|'change', left, right } pairs.
  */
 function computeLineDiff(text1, text2, dmp) {
-  // Use diff_match_patch line-level diff if available (raw lines, no normalize)
+  // Use diff_match_patch line-level diff if available
+  let pairs = [];
   if (dmp && typeof dmp.diff_linesToChars_ === 'function') {
     const { chars1, chars2, lineArray } = dmp.diff_linesToChars_(text1, text2);
     const diffs = dmp.diff_main(chars1, chars2, false);
     dmp.diff_cleanupSemantic(diffs);
 
-    const pairs = [];
     diffs.forEach(part => {
       const op = part[0];
       const chars = part[1];
       for (let i = 0; i < chars.length; i++) {
         const line = lineArray[chars.charCodeAt(i)];
-        if (op === 0) {
-          pairs.push({ type: 'equal', left: line, right: line });
-        } else if (op === -1) {
-          pairs.push({ type: 'delete', left: line, right: null });
-        } else if (op === 1) {
-          pairs.push({ type: 'insert', left: null, right: line });
-        }
+        if (op === 0) pairs.push({ type: 'equal', left: line, right: line });
+        else if (op === -1) pairs.push({ type: 'delete', left: line, right: null });
+        else if (op === 1) pairs.push({ type: 'insert', left: null, right: line });
       }
     });
-
-    // Merge consecutive delete+insert into change
-    const merged = [];
-    let k = 0;
-    while (k < pairs.length) {
-      const deletes = [];
-      while (k < pairs.length && pairs[k].type === 'delete') {
-        deletes.push(pairs[k++]);
-      }
-      const inserts = [];
-      while (k < pairs.length && pairs[k].type === 'insert') {
-        inserts.push(pairs[k++]);
-      }
-      const maxLen = Math.max(deletes.length, inserts.length);
-      for (let p = 0; p < maxLen; p++) {
-        if (deletes[p] && inserts[p]) {
-          merged.push({ type: 'change', left: deletes[p].left, right: inserts[p].right });
-        } else if (deletes[p]) {
-          merged.push(deletes[p]);
-        } else if (inserts[p]) {
-          merged.push(inserts[p]);
-        }
-      }
-      if (k < pairs.length && pairs[k].type !== 'delete' && pairs[k].type !== 'insert') {
-        merged.push(pairs[k++]);
+  } else {
+    // Fallback LCS
+    const lines1 = text1.split('\n');
+    const lines2 = text2.split('\n');
+    const m = lines1.length, n = lines2.length;
+    const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+    for (let i = 1; i <= m; i++) {
+      for (let j = 1; j <= n; j++) {
+        if (lines1[i - 1] === lines2[j - 1]) dp[i][j] = dp[i - 1][j - 1] + 1;
+        else dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
       }
     }
-    return merged;
-  }
-
-  // Fallback to original LCS on raw text
-  const lines1 = text1.split('\n');
-  const lines2 = text2.split('\n');
-  const m = lines1.length, n = lines2.length;
-
-  const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
-  for (let i = 1; i <= m; i++) {
-    for (let j = 1; j <= n; j++) {
-      if (lines1[i - 1] === lines2[j - 1]) {
-        dp[i][j] = dp[i - 1][j - 1] + 1;
+    let i = m, j = n;
+    while (i > 0 || j > 0) {
+      if (i > 0 && j > 0 && lines1[i - 1] === lines2[j - 1]) {
+        pairs.unshift({ type: 'equal', left: lines1[i - 1], right: lines2[j - 1] });
+        i--; j--;
+      } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+        pairs.unshift({ type: 'insert', left: null, right: lines2[j - 1] });
+        j--;
       } else {
-        dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+        pairs.unshift({ type: 'delete', left: lines1[i - 1], right: null });
+        i--;
       }
     }
   }
 
-  const pairs = [];
-  let i = m, j = n;
-  while (i > 0 || j > 0) {
-    if (i > 0 && j > 0 && lines1[i - 1] === lines2[j - 1]) {
-      pairs.unshift({ type: 'equal', left: lines1[i - 1], right: lines2[j - 1] });
-      i--; j--;
-    } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
-      pairs.unshift({ type: 'insert', left: null, right: lines2[j - 1] });
-      j--;
-    } else {
-      pairs.unshift({ type: 'delete', left: lines1[i - 1], right: null });
-      i--;
-    }
-  }
-
+  // Fuzzy merge: pair deletes with inserts by word similarity
   const merged = [];
   let k = 0;
   while (k < pairs.length) {
+    if (pairs[k].type !== 'delete') {
+      merged.push(pairs[k++]);
+      continue;
+    }
+    // Collect consecutive deletes
     const deletes = [];
     while (k < pairs.length && pairs[k].type === 'delete') {
-      deletes.push(pairs[k]);
-      k++;
+      deletes.push(pairs[k++]);
     }
+    // Collect consecutive inserts
     const inserts = [];
     while (k < pairs.length && pairs[k].type === 'insert') {
-      inserts.push(pairs[k]);
-      k++;
+      inserts.push(pairs[k++]);
     }
-    const maxLen = Math.max(deletes.length, inserts.length);
-    for (let p = 0; p < maxLen; p++) {
-      const del = deletes[p];
-      const ins = inserts[p];
-      if (del && ins) {
-        merged.push({ type: 'change', left: del.left, right: ins.right });
-      } else if (del) {
+
+    // Greedy best-match by Jaccard word similarity
+    const used = new Set();
+    deletes.forEach(del => {
+      let bestIdx = -1, bestSim = 0;
+      inserts.forEach((ins, idx) => {
+        if (used.has(idx)) return;
+        const sim = wordSimilarity(del.left, ins.right);
+        if (sim > bestSim) { bestSim = sim; bestIdx = idx; }
+      });
+      if (bestIdx >= 0 && bestSim >= 0.25) {
+        used.add(bestIdx);
+        merged.push({ type: 'change', left: del.left, right: inserts[bestIdx].right });
+      } else {
         merged.push(del);
-      } else if (ins) {
-        merged.push(ins);
       }
-    }
-    if (k < pairs.length && pairs[k].type !== 'delete' && pairs[k].type !== 'insert') {
-      merged.push(pairs[k]);
-      k++;
-    }
+    });
+    inserts.forEach((ins, idx) => {
+      if (!used.has(idx)) merged.push(ins);
+    });
   }
   return merged;
+}
+
+function wordSimilarity(a, b) {
+  if (!a || !b) return 0;
+  const wa = new Set(a.trim().split(/\s+/).filter(w => w.length > 0));
+  const wb = new Set(b.trim().split(/\s+/).filter(w => w.length > 0));
+  if (wa.size === 0 || wb.size === 0) return 0;
+  const common = [...wa].filter(w => wb.has(w)).length;
+  return common / Math.max(wa.size, wb.size);
 }
 
 /**
