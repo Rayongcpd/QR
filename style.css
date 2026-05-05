@@ -280,6 +280,10 @@ input:focus, textarea:focus {
     color: #64748b;
 }
 
+.diff-cell-full {
+    display: none;
+}
+
 /* Row background tints */
 .diff-row-equal {
     background: transparent;

@@ -727,15 +727,72 @@ function handleAnalyzeOnly() {
 }
 
 /**
- * Compute LCS-based line-level diff between two texts.
- * Returns array of { type: 'equal'|'delete'|'insert', left, right } pairs.
+ * Compute line-level diff between two texts.
+ * Normalizes soft-wrapped lines then uses diff_match_patch for accurate alignment.
+ * Returns array of { type: 'equal'|'delete'|'insert'|'change', left, right } pairs.
  */
-function computeLineDiff(text1, text2) {
-  const lines1 = text1.split('\n');
-  const lines2 = text2.split('\n');
+function computeLineDiff(text1, text2, dmp) {
+  // Normalize: join soft-wrapped lines (single newlines not followed by blank line)
+  const normalize = (t) => t.replace(/([^\n])\n([^\n])/g, '$1 $2').trim();
+  const n1 = normalize(text1);
+  const n2 = normalize(text2);
+
+  // Use diff_match_patch line-level diff if available
+  if (dmp && typeof dmp.diff_linesToChars_ === 'function') {
+    const { chars1, chars2, lineArray } = dmp.diff_linesToChars_(n1, n2);
+    const diffs = dmp.diff_main(chars1, chars2, false);
+    dmp.diff_cleanupSemantic(diffs);
+
+    const pairs = [];
+    diffs.forEach(part => {
+      const op = part[0];
+      const chars = part[1];
+      for (let i = 0; i < chars.length; i++) {
+        const line = lineArray[chars.charCodeAt(i)];
+        if (op === 0) {
+          pairs.push({ type: 'equal', left: line, right: line });
+        } else if (op === -1) {
+          pairs.push({ type: 'delete', left: line, right: null });
+        } else if (op === 1) {
+          pairs.push({ type: 'insert', left: null, right: line });
+        }
+      }
+    });
+
+    // Merge consecutive delete+insert into change
+    const merged = [];
+    let k = 0;
+    while (k < pairs.length) {
+      const deletes = [];
+      while (k < pairs.length && pairs[k].type === 'delete') {
+        deletes.push(pairs[k++]);
+      }
+      const inserts = [];
+      while (k < pairs.length && pairs[k].type === 'insert') {
+        inserts.push(pairs[k++]);
+      }
+      const maxLen = Math.max(deletes.length, inserts.length);
+      for (let p = 0; p < maxLen; p++) {
+        if (deletes[p] && inserts[p]) {
+          merged.push({ type: 'change', left: deletes[p].left, right: inserts[p].right });
+        } else if (deletes[p]) {
+          merged.push(deletes[p]);
+        } else if (inserts[p]) {
+          merged.push(inserts[p]);
+        }
+      }
+      if (k < pairs.length && pairs[k].type !== 'delete' && pairs[k].type !== 'insert') {
+        merged.push(pairs[k++]);
+      }
+    }
+    return merged;
+  }
+
+  // Fallback to original LCS on normalized text
+  const lines1 = n1.split('\n');
+  const lines2 = n2.split('\n');
   const m = lines1.length, n = lines2.length;
 
-  // Build LCS table
   const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
   for (let i = 1; i <= m; i++) {
     for (let j = 1; j <= n; j++) {
@@ -747,7 +804,6 @@ function computeLineDiff(text1, text2) {
     }
   }
 
-  // Trace back to get diff pairs
   const pairs = [];
   let i = m, j = n;
   while (i > 0 || j > 0) {
@@ -763,23 +819,19 @@ function computeLineDiff(text1, text2) {
     }
   }
 
-  // Merge blocks of consecutive deletes + inserts into paired 'change' rows
   const merged = [];
   let k = 0;
   while (k < pairs.length) {
-    // Collect consecutive deletes
     const deletes = [];
     while (k < pairs.length && pairs[k].type === 'delete') {
       deletes.push(pairs[k]);
       k++;
     }
-    // Collect consecutive inserts right after the deletes
     const inserts = [];
     while (k < pairs.length && pairs[k].type === 'insert') {
       inserts.push(pairs[k]);
       k++;
     }
-    // Pair them 1:1 as 'change' rows; leftovers stay as delete/insert
     const maxLen = Math.max(deletes.length, inserts.length);
     for (let p = 0; p < maxLen; p++) {
       const del = deletes[p];
@@ -792,7 +844,6 @@ function computeLineDiff(text1, text2) {
         merged.push(ins);
       }
     }
-    // Push equal or any other type
     if (k < pairs.length && pairs[k].type !== 'delete' && pairs[k].type !== 'insert') {
       merged.push(pairs[k]);
       k++;
@@ -860,7 +911,7 @@ function handleDocCompare() {
     }
 
     // Line-level diff
-    const pairs = computeLineDiff(t1, t2);
+    const pairs = computeLineDiff(t1, t2, dmp);
     let addedCount = 0, removedCount = 0;
     let rowsHtml = '';
 
