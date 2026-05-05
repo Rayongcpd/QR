@@ -732,14 +732,9 @@ function handleAnalyzeOnly() {
  * Returns array of { type: 'equal'|'delete'|'insert'|'change', left, right } pairs.
  */
 function computeLineDiff(text1, text2, dmp) {
-  // Normalize: join soft-wrapped lines (single newlines not followed by blank line)
-  const normalize = (t) => t.replace(/([^\n])\n([^\n])/g, '$1 $2').trim();
-  const n1 = normalize(text1);
-  const n2 = normalize(text2);
-
-  // Use diff_match_patch line-level diff if available
+  // Use diff_match_patch line-level diff if available (raw lines, no normalize)
   if (dmp && typeof dmp.diff_linesToChars_ === 'function') {
-    const { chars1, chars2, lineArray } = dmp.diff_linesToChars_(n1, n2);
+    const { chars1, chars2, lineArray } = dmp.diff_linesToChars_(text1, text2);
     const diffs = dmp.diff_main(chars1, chars2, false);
     dmp.diff_cleanupSemantic(diffs);
 
@@ -788,9 +783,9 @@ function computeLineDiff(text1, text2, dmp) {
     return merged;
   }
 
-  // Fallback to original LCS on normalized text
-  const lines1 = n1.split('\n');
-  const lines2 = n2.split('\n');
+  // Fallback to original LCS on raw text
+  const lines1 = text1.split('\n');
+  const lines2 = text2.split('\n');
   const m = lines1.length, n = lines2.length;
 
   const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
