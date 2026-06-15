@@ -676,7 +676,23 @@ async function handleWordUpload(e) {
         });
 
         if (!result.success) {
-            throw new Error(result.error || 'แปลงไฟล์ไม่สำเร็จ');
+            // Provide more helpful error messages based on the error type
+            let userMessage = 'แปลงไฟล์ไม่สำเร็จ';
+            const errorMsg = result.error || '';
+            
+            if (errorMsg.includes('Permission denied') || errorMsg.includes('Unauthorized')) {
+                userMessage = 'ไม่มีสทธิการเข้าถึ Google Drive - กรุณาตรวจสอบการอนุญาต API';
+            } else if (errorMsg.includes('File too large') || errorMsg.includes('exceeded')) {
+                userMessage = 'ไฟล์ PDF ใหญ่เกินไป (สูงสุด 50MB)';
+            } else if (errorMsg.includes('conversion') || errorMsg.includes('แปลง')) {
+                userMessage = 'ไม่สามารถแปลง PDF เป็นเอกสารได้ - PDF อาจเสียหายหรือไม่รองรับ';
+            } else if (errorMsg.includes('quota')) {
+                userMessage = 'เกินขีดจำกัดการใช้งาน - กรุณาลองใหม่อีกครั้งในภายหลัง';
+            } else {
+                userMessage = 'แปลงไฟล์ไม่สำเร็จ: ' + errorMsg.slice(0, 100);
+            }
+            
+            throw new Error(userMessage);
         }
 
         updateWordProgress(80, 'เตรียมนำเข้า...');
