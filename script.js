@@ -19,6 +19,9 @@ let currentBGColor = '#000000';
 let pdfDPI = 150;
 let convertedImages = [];
 let pdfTotalPages = 0;
+let wordMode = 'text'; // 'text' or 'formatted'
+let wordConvertedBlob = null;
+let wordOriginalFilename = '';
 let isAdminAuthenticated = sessionStorage.getItem('isAdminAuth') === 'true';
 
 // ==================== INITIALIZATION ====================
@@ -172,6 +175,7 @@ async function clearData(type) {
     if (!confirmed) return;
     const adminCode = sessionStorage.getItem('adminCode');
     const action = type === 'QR' ? 'clearQRRecords' : 'clearPDFRecords';
+    if (type === 'Word') type = 'PDF'; // Word records are stored in PDF sheet
     showToast('กำลังลบข้อมูล...', '🗑️');
     try {
         const result = await callBackend(action, { adminCode });
@@ -198,6 +202,7 @@ function adminSwitchTab(tab) {
     if (btn) btn.classList.add('active');
     document.getElementById('admin-panel-qr').style.display = tab === 'qr' ? 'block' : 'none';
     document.getElementById('admin-panel-pdf').style.display = tab === 'pdf' ? 'block' : 'none';
+    document.getElementById('admin-panel-word').style.display = tab === 'word' ? 'block' : 'none';
     loadAdminRecords(tab);
 }
 
@@ -220,6 +225,22 @@ async function loadAdminRecords(type) {
             const result = await callBackend('readQRRecords', {});
             records = result.success ? result.data : [];
             adminQRRecords = records;
+        } else if (type === 'word') {
+            // Word: load from PDF_Data sheet (same structure, just different display)
+            const res = await fetch(`${GAS_URL}?action=getPDFHistory`);
+            const json = await res.json();
+            if (json.success && Array.isArray(json.data)) {
+                records = json.data.map((row, i) => {
+                    if (typeof row === 'object' && !Array.isArray(row)) return row;
+                    return {
+                        _rowIndex: i + 2,
+                        'Timestamp': row[0], 'Filename': row[1],
+                        'Total Pages': row[2], 'DPI': row[3],
+                        'Drive Folder URL': row[4], 'User Email': row[5]
+                    };
+                });
+            }
+            adminPDFRecords = records;
         } else {
             // PDF: use GET endpoint to get records with row indices
             const res = await fetch(`${GAS_URL}?action=getPDFHistory`);
@@ -262,6 +283,8 @@ function renderRecords(type, records, container) {
         const rowId  = type === 'qr' ? (rec.qr_id || rec['qr_id'] || idx) : (rec._rowIndex || idx + 2);
         const label  = type === 'qr'
             ? `<strong style="color:#e2e8f0">${rec.type || 'URL'}</strong> · <span style="color:#94a3b8;font-size:11px;word-break:break-all;">${String(rec.data || '').slice(0, 60)}</span>`
+            : type === 'word'
+            ? `<strong style="color:#e2e8f0">📝 ${rec['Filename'] || rec[1] || 'ไฟล์'}</strong> · <span style="color:#94a3b8;font-size:11px;">แปลง Word · DPI ${rec['DPI'] || rec[3] || ''}</span>`
             : `<strong style="color:#e2e8f0">${rec['Filename'] || rec[1] || 'ไฟล์'}</strong> · <span style="color:#94a3b8;font-size:11px;">${rec['Total Pages'] || rec[2] || '?'} หน้า · DPI ${rec['DPI'] || rec[3] || ''}</span>`;
         const dateVal = type === 'qr' ? rec.created_at : (rec['Timestamp'] || rec[0] || '');
         const dateStr = dateVal ? new Date(dateVal).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
@@ -300,6 +323,7 @@ function renderRecords(type, records, container) {
 
 async function updateRecordExpiry(type, id, days) {
     const adminCode = sessionStorage.getItem('adminCode');
+    // Word records are stored in PDF_Data sheet
     const sheet = type === 'qr' ? 'QR_Data' : 'PDF_Data';
     
     try {
@@ -339,6 +363,7 @@ async function setupCleanupAutomation() {
 
 function toggleSelectAll(type) {
     const masterCb = document.getElementById(`${type}-select-all`);
+    if (!masterCb) return;
     document.querySelectorAll(`.${type}-record-cb`).forEach(cb => cb.checked = masterCb.checked);
     updateSelectedCount(type);
 }
@@ -365,6 +390,8 @@ async function deleteSelected(type) {
     const adminCode = sessionStorage.getItem('adminCode');
     const ids = checkboxes.map(cb => cb.dataset.id);
     const action = type === 'qr' ? 'deleteQRRecord' : 'deletePDFRecord';
+    // Word records are stored in PDF sheet
+    const sheet = type === 'qr' ? 'QR_Data' : 'PDF_Data';
 
     showToast(`กำลังลบ ${ids.length} รายการ...`, '🗑️');
     try {
@@ -602,6 +629,131 @@ async function downloadAllImages() {
     link.href = URL.createObjectURL(content);
     link.download = `pdf_images_${Date.now()}.zip`;
     link.click();
+}
+
+// ==================== PDF TO WORD CONVERTER ====================
+
+function setWordMode(mode) {
+    wordMode = mode;
+    document.querySelectorAll('[data-wordmode]').forEach(btn => btn.classList.remove('active'));
+    document.querySelector(`[data-wordmode="${mode}"]`).classList.add('active');
+}
+
+async function handleWordUpload(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    document.getElementById('word-label').textContent = file.name;
+    document.getElementById('word-status').style.display = 'block';
+    document.getElementById('word-result-actions').style.display = 'none';
+    wordConvertedBlob = null;
+    wordOriginalFilename = file.name;
+
+    try {
+        updateWordProgress(10, 'อ่านไฟล์ PDF...');
+
+        // Read file as base64
+        const arrayBuffer = await file.arrayBuffer();
+        const base64 = btoa(
+            Array.from(new Uint8Array(arrayBuffer))
+                .map(b => String.fromCharCode(b))
+                .join('')
+        );
+
+        updateWordProgress(30, 'สงไปประมวลผลบนเซิร์ฟเวอร์...');
+
+        // Call backend to convert PDF → DOCX
+        const result = await callBackend('convertPDFToWord', {
+            fileName: file.name,
+            base64Data: base64,
+            mode: wordMode
+        });
+
+        if (!result.success) {
+            throw new Error(result.error || 'แปลงไฟล์ไม่สำเร็จ');
+        }
+
+        updateWordProgress(80, 'เตรียมนำเข้า...');
+
+        // Download the blob
+        const blob = await (await fetch(result.downloadUrl)).blob();
+        wordConvertedBlob = blob;
+
+        updateWordProgress(100, 'เสร็จสมบรณ์!');
+        document.getElementById('word-result-actions').style.display = 'flex';
+        showToast('แปลง PDF เป็น Word สำเร็จ! 📝', '✨');
+
+    } catch (err) {
+        showToast('เกิดข้อผิดพลาด: ' + err.message, '⚠️');
+        console.error(err);
+    }
+}
+
+function updateWordProgress(percent, text) {
+    document.getElementById('word-progress-bar').style.width = percent + '%';
+    document.getElementById('word-progress-val').textContent = percent + '%';
+    document.getElementById('word-progress-text').textContent = text;
+}
+
+function downloadWordFile() {
+    if (!wordConvertedBlob) {
+        showToast('ไม่มีไฟล์เพื่อดาวน์โหลด', '⚠️');
+        return;
+    }
+
+    const baseName = wordOriginalFilename.replace(/\.pdf$/i, '');
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(wordConvertedBlob);
+    link.download = `${baseName}_converted.docx`;
+    link.click();
+
+    showToast('ดาวน์โหลดสำเร็จ! 💾', '✨');
+}
+
+async function saveWordToDrive() {
+    if (!wordConvertedBlob) {
+        showToast('ไม่มีไฟล์เพื่อบันทึก', '⚠️');
+        return;
+    }
+
+    const btn = document.getElementById('word-save-btn');
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span>กำลังบันทึก...</span>';
+    showToast('กำลังบันทึกลง Google Drive...', '☁️');
+
+    try {
+        // Convert blob to base64
+        const base64 = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(wordConvertedBlob);
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = reject;
+        });
+
+        const result = await callBackend('saveWordToDrive', {
+            fileName: wordOriginalFilename.replace(/\.pdf$/i, '') + '_converted.docx',
+            base64Data: base64
+        });
+
+        if (result.success) {
+            showToast('บันทึกลง Drive สำเร็จ! ✅', '✨');
+            btn.innerHTML = '<span>✅ บันทึกแล้ว</span>';
+            btn.style.background = 'rgba(34, 197, 94, 0.2)';
+            btn.style.color = '#4ade80';
+            btn.style.borderColor = 'rgba(34, 197, 94, 0.4)';
+            btn.onclick = () => window.open(result.folderUrl || result.fileUrl, '_blank');
+            btn.title = 'คลิกเพื่อเปดโฟลเดอร';
+        } else {
+            showToast('บันทึกลง Drive ไม่สำเร็จ: ' + (result.error || 'Unknown error'), '❌');
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+    } catch (err) {
+        showToast('เกิดข้อผิดพลาดในการเชื่อมต่อ', '⚠️');
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+    }
 }
 
 // ==================== UTILS ====================

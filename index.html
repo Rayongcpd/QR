@@ -513,6 +513,10 @@
                 <span class="icon">📄</span>
                 PDF
             </div>
+            <div class="nav-item" onclick="switchTab('word')" id="tab-word">
+                <span class="icon">📝</span>
+                Word
+            </div>
             <div class="nav-item" onclick="switchTab('review')" id="tab-review">
                 <span class="icon">🛡️</span>
                 Review
@@ -541,6 +545,10 @@
             <div class="bottom-nav-item" onclick="switchTab('pdf')" id="tab-pdf-mobile">
                 <span class="icon">📄</span>
                 PDF
+            </div>
+            <div class="bottom-nav-item" onclick="switchTab('word')" id="tab-word-mobile">
+                <span class="icon">📝</span>
+                Word
             </div>
             <div class="bottom-nav-item" onclick="switchTab('review')" id="tab-review-mobile">
                 <span class="icon">🛡️</span>
@@ -761,6 +769,95 @@
                 </div>
             </section>
 
+            <!-- ── Word Section (PDF to Word) ── -->
+            <section id="section-word" class="tab-content fade-up">
+                <div class="glass glass-mobile-padding" style="border-radius:24px;padding:32px;">
+
+                    <h2
+                        style="font-family:'Outfit',sans-serif;font-size:20px;font-weight:700;margin-bottom:24px;display:flex;align-items:center;gap:10px;">
+                        <span
+                            style="width:36px;height:36px;background:rgba(59,130,246,0.15);border-radius:10px;display:flex;align-items:center;justify-content:center;">📝</span>
+                        แปลง PDF เป็น Word (.docx)
+                    </h2>
+
+                    <div class="grid-cols-mobile-stack" style="display:grid;grid-template-columns:1fr 260px;gap:24px;margin-bottom:28px;">
+
+                        <!-- Drop Zone -->
+                        <div class="dropzone"
+                            style="min-height:200px;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;">
+                            <input type="file" id="word-upload" accept=".pdf"
+                                style="position:absolute;inset:0;opacity:0;cursor:pointer;">
+                            <div style="font-size:48px;margin-bottom:12px;">📂</div>
+                            <p id="word-label" style="font-size:16px;font-weight:700;color:#e2e8f0;">ลากไฟล์ PDF
+                                มาวางที่นี่</p>
+                            <p
+                                style="font-size:12px;color:#475569;margin-top:8px;background:rgba(2,6,23,0.5);padding:4px 12px;border-radius:999px;">
+                                สูงสุด 20MB · ประมวลผลบนเซิร์ฟเวอร์</p>
+                        </div>
+
+                        <!-- Settings Panel -->
+                        <div style="display:flex;flex-direction:column;gap:16px;justify-content:center;">
+                            <div>
+                                <p class="field-label">รูปแบบการแปลง</p>
+                                <div style="display:flex;flex-direction:column;gap:8px;margin-top:10px;">
+                                    <button onclick="setWordMode('text')" class="type-badge active" data-wordmode="text" style="display:flex;align-items:center;gap:6px;">
+                                        📝 ข้อความเท่านั้ن
+                                    </button>
+                                    <button onclick="setWordMode('formatted')" class="type-badge" data-wordmode="formatted" style="display:flex;align-items:center;gap:6px;">
+                                        📊 ข้อความ + ตาราง
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- Progress -->
+                    <div id="word-status"
+                        style="display:none;background:rgba(2,6,23,0.5);border:1px solid rgba(255,255,255,0.06);border-radius:16px;padding:20px;margin-bottom:24px;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                            <div>
+                                <span
+                                    style="font-size:10px;font-weight:700;color:#3b82f6;text-transform:uppercase;letter-spacing:0.1em;">Processing</span>
+                                <p id="word-progress-text" style="font-size:14px;font-weight:600;margin-top:2px;">
+                                    กำลังประมวลผล...</p>
+                            </div>
+                            <span id="word-progress-val"
+                                style="font-family:'Outfit',sans-serif;font-size:22px;font-weight:800;color:#3b82f6;">0%</span>
+                        </div>
+                        <div style="height:6px;background:#0f172a;border-radius:999px;overflow:hidden;">
+                            <div id="word-progress-bar"
+                                style="height:100%;width:0%;background:linear-gradient(90deg,#2563eb,#06b6d4);border-radius:999px;transition:width 0.4s ease;">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Actions -->
+                    <div id="word-result-actions" style="display:none;gap:12px;flex-wrap:wrap;">
+                        <button onclick="downloadWordFile()"
+                            style="padding:12px 24px;border-radius:14px;background:linear-gradient(135deg,#2563eb,#06b6d4);color:#fff;font-weight:700;font-size:14px;border:none;cursor:pointer;transition:all 0.2s;box-shadow:0 4px 16px rgba(37,99,235,0.3);">
+                            💾 ดาวน์โหลด .docx
+                        </button>
+                        <button onclick="saveWordToDrive()" id="word-save-btn"
+                            style="padding:12px 24px;border-radius:14px;background:transparent;border:1px solid rgba(59,130,246,0.25);color:#60a5fa;font-weight:700;font-size:14px;cursor:pointer;transition:all 0.2s;">
+                            ☁️ บันทึกลง Drive
+                        </button>
+                    </div>
+
+                    <!-- Info -->
+                    <div style="margin-top:24px;background:rgba(2,6,23,0.4);border:1px solid rgba(59,130,246,0.1);border-radius:14px;padding:16px 20px;">
+                        <div style="display:flex;align-items:center;gap:10px;">
+                            <span style="font-size:18px;">💡</span>
+                            <div>
+                                <p style="font-size:13px;font-weight:600;color:#cbd5e1;">ระบบจะแปลง PDF ของคุณเป็นไฟล์ Word</p>
+                                <p style="font-size:11px;color:#64748b;margin-top:4px;">ไฟล์จะถูกลบทันทีหลังดาวน์โหลดเสร็จ — ปลอดภัย 100%</p>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </section>
+
             <!-- ── Review Section (DocGuard) ── -->
             <section id="section-review" class="tab-content fade-up">
                 <div class="glass glass-mobile-padding" style="border-radius:24px;padding:32px;">
@@ -967,6 +1064,7 @@
                             <div style="display:flex;gap:8px;">
                                 <button onclick="adminSwitchTab('qr')" id="admin-tab-qr" class="type-badge active" data-type="qr">📷 QR Code</button>
                                 <button onclick="adminSwitchTab('pdf')" id="admin-tab-pdf" class="type-badge" data-type="pdf">📄 PDF</button>
+                                <button onclick="adminSwitchTab('word')" id="admin-tab-word" class="type-badge" data-type="word">📝 Word</button>
                             </div>
                             <button onclick="logoutAdmin()" style="font-size:12px;color:#64748b;text-decoration:underline;cursor:pointer;">ออกจากระบบ 🔓</button>
                         </div>
@@ -1003,6 +1101,23 @@
                             <div id="admin-pdf-loading" style="text-align:center;padding:40px;color:#64748b;font-size:13px;">กำลังโหลด...</div>
                             <div id="admin-pdf-list" style="display:none;max-height:440px;overflow-y:auto;"></div>
                             <div id="admin-pdf-empty" style="display:none;text-align:center;padding:40px;color:#64748b;font-size:13px;">ไม่มีข้อมูล PDF</div>
+                        </div>
+
+                        <!-- Word Records Tab (Hidden initially) -->
+                        <div id="admin-panel-word" style="display:none;">
+                            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:10px;">
+                                <div style="display:flex;align-items:center;gap:8px;">
+                                    <input type="checkbox" id="word-select-all" onchange="toggleSelectAll('word')" style="width:16px;height:16px;cursor:pointer;">
+                                    <span id="word-selected-count" style="font-size:12px;color:#64748b;">เลือกทั้งหมด</span>
+                                </div>
+                                <div style="display:flex;gap:8px;">
+                                    <button onclick="loadAdminRecords('word')" style="padding:8px 14px;border-radius:10px;background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.2);color:#60a5fa;font-size:12px;font-weight:600;cursor:pointer;">🔄 รีเฟรช</button>
+                                    <button onclick="deleteSelected('word')" id="btn-delete-word" style="padding:8px 14px;border-radius:10px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);color:#f87171;font-size:12px;font-weight:600;cursor:pointer;">🗑️ ลบที่เลือก</button>
+                                </div>
+                            </div>
+                            <div id="admin-word-loading" style="text-align:center;padding:40px;color:#64748b;font-size:13px;">กำลังโหลด...</div>
+                            <div id="admin-word-list" style="display:none;max-height:440px;overflow-y:auto;"></div>
+                            <div id="admin-word-empty" style="display:none;text-align:center;padding:40px;color:#64748b;font-size:13px;">ไม่มีข้อมูล Word</div>
                         </div>
 
                         <div style="margin-top:32px;display:flex;flex-direction:column;align-items:center;gap:12px;">
@@ -1154,7 +1269,12 @@
                 pdfInput.removeEventListener('change', window.handlePDFUpload); // Clear old
                 pdfInput.addEventListener('change', window.handlePDFUpload);     // Bind new
             }
-            
+
+            const wordInput = document.getElementById('word-upload');
+            if (wordInput) {
+                wordInput.addEventListener('change', window.handleWordUpload);
+            }
+
             // Sync initial state
             const initialAutoSave = document.getElementById('pdf-auto-save');
             const toggleWrapper = document.getElementById('pdf-auto-save-wrapper');
