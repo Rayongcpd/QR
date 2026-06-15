@@ -652,13 +652,19 @@ async function handleWordUpload(e) {
     try {
         updateWordProgress(10, 'อ่านไฟล์ PDF...');
 
-        // Read file as base64
+        // Read file as raw binary then convert to base64 safely
         const arrayBuffer = await file.arrayBuffer();
-        const base64 = btoa(
-            Array.from(new Uint8Array(arrayBuffer))
-                .map(b => String.fromCharCode(b))
-                .join('')
-        );
+        const bytes = new Uint8Array(arrayBuffer);
+
+        // Convert to base64 using binary string (avoids surrogate pair issues with large files)
+        let binary = '';
+        // Process in chunks to avoid stack overflow for large files
+        const chunkSize = 8192;
+        for (let i = 0; i < bytes.length; i += chunkSize) {
+            const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.length));
+            binary += String.fromCharCode.apply(null, chunk);
+        }
+        const base64 = btoa(binary);
 
         updateWordProgress(30, 'สงไปประมวลผลบนเซิร์ฟเวอร์...');
 
